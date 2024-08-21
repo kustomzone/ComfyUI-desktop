@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, webContents } from 'electron';
 import path from 'path';
 import net from 'net';
 import { spawn, ChildProcess } from 'child_process';
@@ -28,17 +28,41 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: true, // Enable Node.js integration
       contextIsolation: false,
+      webviewTag: true,
     },
 
   });
 
+  // and load the index.html of the app.
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  }
+  // Open the DevTools.
+  setTimeout(() => {
+    mainWindow.webContents.openDevTools();
+
+  }, 8000);
+
+  return;
+
   // Load the UI from the Python server's URL
   mainWindow.loadURL('http://localhost:8188/');
 
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
 };
 
+// Server Heartbeat Listener Variables
+let serverHeartBeatReference: NodeJS.Timeout = null;
+const serverHeartBeatInterval: number = 15 * 1000; //15 Seconds
+async function serverHeartBeat() {
+  const isReady = await isPortInUse(host, port);
+  if (isReady) {
+    webContents.getAllWebContents()[0].send("python-server-status", "active");
+  } else {
+    webContents.getAllWebContents()[0].send("python-server-status", "false");
+  }
+}
 
 const isPortInUse = (host: string, port: number): Promise<boolean> => {
   return new Promise((resolve) => {
@@ -61,11 +85,23 @@ const isPortInUse = (host: string, port: number): Promise<boolean> => {
   });
 };
 
+// Launch Python Server Variables
+const maxFailWait: number = 10 * 2000; // 10seconds
+let currentWaitTime: number = 0;
+let spawnServerTimeout: NodeJS.Timeout = null;
 
 const launchPythonServer = async () => {
   const isServerRunning = await isPortInUse(host, port);
+
   if (isServerRunning) {
     console.log('Python server is already running');
+    // Server has been started outside the app, so attach to it.
+    setTimeout(() => {
+      // Not sure if needed but wait a few moments before sending the connect message up. 
+      webContents.getAllWebContents()[0].send("python-server-status", "active");
+    }, 5000);
+    clearInterval(serverHeartBeatReference);
+    serverHeartBeatReference = setInterval(serverHeartBeat, serverHeartBeatInterval);
     return Promise.resolve();
   }
 
@@ -105,9 +141,19 @@ const launchPythonServer = async () => {
     const checkInterval = 1000; // Check every 1 second
 
     const checkServerReady = async () => {
+      currentWaitTime += 1000;
+      if (currentWaitTime > maxFailWait) {
+        //Something has gone wrong and we need to backout. 
+        clearTimeout(spawnServerTimeout);
+        reject("Python Server Failed To Start");
+      }
       const isReady = await isPortInUse(host, port);
       if (isReady) {
         console.log('Python server is ready');
+        // Start the Heartbeat listener, send connected message to Renderer and resolve promise. 
+        serverHeartBeatReference = setInterval(serverHeartBeat, serverHeartBeatInterval);
+        webContents.getAllWebContents()[0].send("python-server-status", "active");
+        clearTimeout(spawnServerTimeout);
         resolve();
       } else {
         console.log('Ping failed. Retrying...');
@@ -126,13 +172,15 @@ app.on('ready', async () => {
   createWindow();
   try {
     await launchPythonServer();
-
   } catch (error) {
-
+    clearTimeout(spawnServerTimeout);
+    console.error(error);
   }
 });
 
 const killPythonServer = () => {
+  // Even if the Python Process was not started by the APP, make sure to clear this interval.
+  clearInterval(serverHeartBeatReference);
   if (pythonProcess) {
     pythonProcess.kill();
     pythonProcess = null;
