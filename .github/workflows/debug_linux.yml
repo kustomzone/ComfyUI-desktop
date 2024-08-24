@@ -1,5 +1,5 @@
 # .github/workflows/debug_linux.yml
-name: Debug App
+name: Build App Linux Debug
 
 on:
   workflow_dispatch:

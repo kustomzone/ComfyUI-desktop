@@ -1,0 +1,55 @@
+name: Macos Build App
+description: Electron-Forge Build/Sign/publish
+inputs:
+  GITHUB_TOKEN:
+    required: true
+    type: string
+  APPLE_ID:
+    required: false
+    default: ''
+    type: string
+  APPLE_PASSWORD:
+    required: false
+    default: ''
+    type: string
+  APPLE_TEAM_ID:
+    required: false
+    defualt: ''
+    type: string
+  build-targets:
+    description: Override the default targets and build the passed targets. Comma separated list. Include '--target' and full names, eg '--targets=@electron-forge/maker-dmg, ...etc'
+    required: false
+    defualt: ''
+    type: string
+  sign-and-publish:
+    description: 'Sign the executable and publish to release page'
+    default: false
+    required: false
+    type: boolean
+runs:
+  using: composite
+  steps: 
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+    - run: npm i
+      shell: sh
+    - name: Download and prepare ComfyUI
+      shell: sh
+      run: |
+        curl -L -o comfyui-mac.tar.gz https://github.com/Comfy-Org/python-dependencies/releases/download/mac-arm-deps-py3.12-2024-08-16-050751/mac_arm_python_env.tar.gz
+        tar -xzvf comfyui-mac.tar.gz
+        rm -rf ComfyUI
+        mv dist/ComfyUI ./assets/UI/ComfyUIBackend
+        rm -rf comfyui-mac.tar.gz
+    - name: Build app
+      shell: sh
+      env:
+        DEBUG: electron-forge:*
+        PUBLISH: ${{ inputs.sign-and-publish }}
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        APPLE_ID: ${{ inputs.APPLE_ID }}
+        APPLE_PASSWORD: ${{ inputs.APPLE_PASSWORD }}
+        APPLE_TEAM_ID: ${{ inputs.APPLE_TEAM_ID }}
+      run: npm run ${{inputs.sign-and-publish == true && 'publish' || 'make'}} -- --arch="x64","arm64" ${{inputs.build-targets}}

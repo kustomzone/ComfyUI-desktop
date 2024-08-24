@@ -1,5 +1,5 @@
 # .github/workflows/debug_macos.yml
-name: Build App Macos Debug
+name: Build App MacOS Debug
 
 on:
   workflow_dispatch:

@@ -41,7 +41,7 @@ const createWindow = () => {
   }
   // Open the DevTools.
   setTimeout(() => {
-    mainWindow.webContents.openDevTools();
+    //mainWindow.webContents.openDevTools();
 
   }, 8000);
 
@@ -58,6 +58,7 @@ const serverHeartBeatInterval: number = 15 * 1000; //15 Seconds
 async function serverHeartBeat() {
   const isReady = await isPortInUse(host, port);
   if (isReady) {
+    // Getting webcontents[0] is not reliable if app started with dev window
     webContents.getAllWebContents()[0].send("python-server-status", "active");
   } else {
     webContents.getAllWebContents()[0].send("python-server-status", "false");
