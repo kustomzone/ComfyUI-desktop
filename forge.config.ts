@@ -16,6 +16,7 @@ const config: ForgeConfig = {
       windowsSign: {
         debug: true,
         hookFunction: (filePath) => {
+          if (!filePath.endsWith('ComfyUI.exe')) return; // For now just ignore any file that isnt the main exe will need to change when building with installers/auto updates / a compiled python servesr
           import('child_process').then((cp) =>
             cp.execSync(
               `signtool.exe sign /sha1 ${process.env.DIGICERT_FINGERPRINT} /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 ${filePath}`
@@ -81,18 +82,14 @@ const config: ForgeConfig = {
     new MakerSquirrel(
       (arch) => ({
         noDelta: !process.env.PUBLISH,
-        ...(process.env.PUBLISH == 'true' && {
-          //For some reason passing windowsign causes squirrels backend to fail, using the old signwithparam param however works.
-          signWithParams: `/sha1 ${process.env.DIGICERT_FINGERPRINT} /tr http://timestamp.digicert.com /td SHA256 /fd SHA256`,
-        }),
-        remoteReleases: `https://comfyui-electron-releases.s3.us-west-2.amazonaws.com/win32/${arch}/`,
+        remoteReleases: `https://comfyui-electron-releases.s3.us-west-2.amazonaws.com/win32/${arch}`,
         frameworkVersion: 'net481',
       }),
       ['win32']
     ),
     new MakerZIP(
       (arch) => ({
-        macUpdateManifestBaseUrl: `https://comfyui-electron-releases.s3.us-west-2.amazonaws.com/darwin/${arch}/`,
+        macUpdateManifestBaseUrl: `https://comfyui-electron-releases.s3.us-west-2.amazonaws.com/darwin/${arch}`,
       }),
       ['darwin', 'win32']
     ),
