@@ -1,17 +1,18 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import * as fsPromises from 'node:fs/promises';
 import fs from 'fs';
-import axios from 'axios';
 import path from 'node:path';
 import { SetupTray } from './tray';
 import { IPC_CHANNELS, SENTRY_URL_ENDPOINT } from './constants';
 import dotenv from 'dotenv';
-import { app, BrowserWindow, webContents, screen, ipcMain, Menu, MenuItem } from 'electron';
+import { app, BrowserWindow, screen, ipcMain, Menu, MenuItem } from 'electron';
 import tar from 'tar';
 import log from 'electron-log/main';
 import * as Sentry from '@sentry/electron/main';
 
 import { updateElectronApp, UpdateSourceType } from 'update-electron-app';
+import { isComfyServerReady, loadComfyUI, loadRendererIntoMainWindow } from './server/utils';
+import { ServerMonitor, ServerState } from './server';
 
 updateElectronApp({
   updateSource: {
@@ -55,27 +56,6 @@ app.isPackaged &&
     ],
   });
 
-function loadComfyIntoMainWindow() {
-  if (!mainWindow) {
-    log.error('Trying to load ComfyUI into main window but it is not ready yet.');
-    return;
-  }
-  mainWindow.loadURL(`http://${host}:${port}`);
-}
-
-async function loadRendererIntoMainWindow(): Promise<void> {
-  if (!mainWindow) {
-    log.error('Trying to load renderer into main window but it is not ready yet.');
-    return;
-  }
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    log.info('Loading Vite Dev Server');
-    await mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
-  }
-}
-
 function restartApp() {
   log.info('Restarting app');
   app.relaunch();
@@ -86,6 +66,7 @@ let pythonProcess: ChildProcess | null = null;
 const host = '127.0.0.1';
 const port = 8188;
 let mainWindow: BrowserWindow | null;
+let serverMonitor: ServerMonitor | null = null;
 const messageQueue: Array<any> = []; // Stores mesaages before renderer is ready.
 
 function buildMenu(userResourcesPath: string): Menu {
@@ -127,7 +108,7 @@ function buildMenu(userResourcesPath: string): Menu {
 export const createWindow = async (userResourcesPath: string): Promise<BrowserWindow> => {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
-  mainWindow = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     title: 'ComfyUI',
     width: width,
     height: height,
@@ -139,7 +120,7 @@ export const createWindow = async (userResourcesPath: string): Promise<BrowserWi
     autoHideMenuBar: true,
   });
 
-  await loadRendererIntoMainWindow();
+  await loadRendererIntoMainWindow(mainWindow);
 
   ipcMain.on(IPC_CHANNELS.RENDERER_READY, () => {
     log.info('Received renderer-ready message!');
@@ -172,36 +153,7 @@ export const createWindow = async (userResourcesPath: string): Promise<BrowserWi
   return mainWindow;
 };
 
-// Server Heartbeat Listener Variable
-async function serverHeartBeat(): Promise<boolean> {
-  return isComfyServerReady(host, port);
-}
-
-const isComfyServerReady = async (host: string, port: number): Promise<boolean> => {
-  const url = `http://${host}:${port}/queue`;
-
-  try {
-    const response = await axios.get(url, {
-      timeout: 5000, // 5 seconds timeout
-    });
-
-    if (response.status >= 200 && response.status < 300) {
-      log.info(`Server responded with status ${response.status} at ${url}`);
-      return true;
-    } else {
-      log.warn(`Server responded with status ${response.status} at ${url}`);
-      return false;
-    }
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      log.error(`Failed to connect to server at ${url}: ${error.message}`);
-    } else {
-      log.error(`Unexpected error when checking server at ${url}: ${error}`);
-    }
-    return false;
-  }
-};
-
+// Global variables
 // Launch Python Server Variables
 const maxFailWait: number = 60 * 1000; // 60seconds
 let currentWaitTime = 0;
@@ -216,7 +168,7 @@ const launchPythonServer = async (
   if (isServerRunning) {
     log.info('Python server is already running. Attaching to it.');
     // Server has been started outside the app, so attach to it.
-    return loadComfyIntoMainWindow();
+    return loadComfyUI(mainWindow, host, port);
   }
 
   log.info('Launching Python server...');
@@ -251,15 +203,11 @@ const launchPythonServer = async (
       if (currentWaitTime > maxFailWait) {
         //Something has gone wrong and we need to backout.
         clearTimeout(spawnServerTimeout);
-        reject('Python Server Failed To Start');
+        reject('ComfyUI Server Failed To Start');
       }
       const isReady = await isComfyServerReady(host, port);
       if (isReady) {
-        sendProgressUpdate(90, 'Finishing...');
-        log.info('Python server is ready');
-
-        //For now just replace the source of the main window to the python server
-        setTimeout(() => loadComfyIntoMainWindow(), 1000);
+        setTimeout(() => loadComfyUI(mainWindow, host, port), 1000);
         clearTimeout(spawnServerTimeout);
         return resolve();
       } else {
@@ -267,8 +215,12 @@ const launchPythonServer = async (
         spawnServerTimeout = setTimeout(checkServerReady, checkInterval);
       }
     };
-
-    checkServerReady();
+    try {
+      await checkServerReady();
+    } catch (error) {
+      sendProgressUpdate(0, error.message);
+      reject('Python Server Failed To Start');
+    }
   });
 };
 
@@ -310,7 +262,7 @@ app.on('ready', async () => {
 
   try {
     sendProgressUpdate(10, 'Creating menu...');
-    await createWindow(userResourcesPath);
+    mainWindow = await createWindow(userResourcesPath);
 
     sendProgressUpdate(20, 'Setting up comfy environment...');
     createComfyDirectories(userResourcesPath);
@@ -327,6 +279,10 @@ app.on('ready', async () => {
       steps: 10,
     });
     await launchPythonServer(pythonInterpreterPath, appResourcesPath, userResourcesPath);
+    sendProgressUpdate(90, 'Finishing...');
+    log.info('Python server is ready');
+    serverMonitor = new ServerMonitor(mainWindow, host, port);
+    serverMonitor.start(ServerState.Up);
   } catch (error) {
     log.error(error);
     sendProgressUpdate(0, error.message);
