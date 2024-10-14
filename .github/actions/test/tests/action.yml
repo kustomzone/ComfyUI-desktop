@@ -12,7 +12,7 @@ runs:
       run: |
         print(open('test-results/.last-run.json').read())
         close('test-results/.last-run.json')
-    - name: printlog
+    - name: print main
       continue-on-error: true
       shell: powershell
       if: always()
@@ -20,10 +20,18 @@ runs:
         cd $ENV:APPDATA
         cd ComfyUI/logs
         gc main.log
+    - name: print comf
+      continue-on-error: true
+      shell: powershell
+      if: always()
+      run: |
+        cd $ENV:APPDATA
+        cd ComfyUI/logs
+        gc comfyui.log
     - name: Upload Compare
       uses: actions/upload-artifact@v4
       continue-on-error: true
       if: always()
       with:
         name: startup-diffs
-        path: "%APPDATA%/ComfyUI/logs/*.log"
+        path: C:/Users/runneradmin/AppData/ComfyUI/logs/*.log"
