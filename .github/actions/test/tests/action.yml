@@ -5,10 +5,10 @@ runs:
   steps:
     - name: Run Tests
       shell: bash
-      runs: |
+      run: |
         yarn run tests:e2e
     - name: Display Results
       shell: python
-      runs: |
+      run: |
         print(open('test-results/.last-run.json').read())
         close('test-results/.last-run.json')
