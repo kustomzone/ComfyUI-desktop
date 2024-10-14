@@ -26,4 +26,4 @@ runs:
       if: always()
       with:
         name: startup-diffs
-        path: %APPDATA%/ComfyUI/logs/*.log
+        path: "%APPDATA%/ComfyUI/logs/*.log"
