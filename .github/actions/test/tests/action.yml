@@ -14,7 +14,6 @@ runs:
         close('test-results/.last-run.json')
     - name: printlog
       continue-on-error: true
-      working-directory: 'C:\'
       shell: powershell
       if: always()
       run: |
@@ -24,7 +23,6 @@ runs:
     - name: Upload Compare
       uses: actions/upload-artifact@v4
       continue-on-error: true
-      working-directory: 'C:\'
       if: always()
       with:
         name: startup-diffs
