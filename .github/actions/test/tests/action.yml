@@ -6,7 +6,7 @@ runs:
     - name: Run Tests
       shell: bash
       run: |
-        yarn run tests:e2e
+        yarn run test:e2e
     - name: Display Results
       shell: python
       run: |
