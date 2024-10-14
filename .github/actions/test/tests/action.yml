@@ -12,6 +12,15 @@ runs:
       run: |
         print(open('test-results/.last-run.json').read())
         close('test-results/.last-run.json')
+    - name: print folder
+      continue-on-error: true
+      if: always()
+      shell: powershell
+      run: |
+        cd C:\\Users\\runneradmin\\
+        ls
+        cd comfyui-electron
+        ls
     - name: print main
       continue-on-error: true
       shell: powershell
@@ -34,4 +43,4 @@ runs:
       if: always()
       with:
         name: startup-diffs
-        path: C:/Users/runneradmin/AppData/ComfyUI/logs/*.log"
+        path: C:\\Users\\runneradmin\\AppData\\ComfyUI\\logs"
