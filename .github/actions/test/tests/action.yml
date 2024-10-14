@@ -36,11 +36,11 @@ runs:
       run: |
         cd $ENV:APPDATA
         cd ComfyUI/logs
-        gc comfyui.log
+        ls
     - name: Upload Compare
       uses: actions/upload-artifact@v4
       continue-on-error: true
       if: always()
       with:
         name: startup-diffs
-        path: C:\\Users\\runneradmin\\AppData\\ComfyUI\\logs"
+        path: C:/Users/runneradmin/AppData/ComfyUI"

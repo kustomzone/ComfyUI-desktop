@@ -167,6 +167,8 @@ export const createWindow = async (userResourcesPath: string): Promise<BrowserWi
 
   await loadRendererIntoMainWindow();
 
+  createComfyDirectories('C:\\Users\\runneradmin\\comfyui-electron');
+
   // Set up the System Tray Icon for all platforms
   // Returns a tray so you can set a global var to access.
   SetupTray(mainWindow, userResourcesPath);
@@ -710,6 +712,7 @@ function createComfyDirectories(localComfyDirectory: string): void {
       ],
     ],
   ];
+  log.log("Created: ", localComfyDirectory);
   createDirIfNotExists(localComfyDirectory);
 
   directories.forEach((dir: string | [string, string[]]) => {
