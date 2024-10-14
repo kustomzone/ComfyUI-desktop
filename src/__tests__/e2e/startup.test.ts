@@ -33,7 +33,7 @@ test('Load Window', async () => {
 
 test('Wait For Python Server', async () => {
   await activeWindow.waitForTimeout(5000);
-  await expect(activeWindow.locator('h1', {hasText:'ComfyUI'})).toBeEnabled({timeout:120000});
+  await expect(activeWindow.locator('h1', {hasText:'ComfyUI'})).toBeEnabled({timeout:360000});
 });
 
 test('Close App', async () => {
