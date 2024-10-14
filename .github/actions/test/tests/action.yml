@@ -12,10 +12,20 @@ runs:
       run: |
         print(open('test-results/.last-run.json').read())
         close('test-results/.last-run.json')
+    - name: printlog
+      continue-on-error: true
+      working-directory: 'C:\'
+      shell: powershell
+      if: always()
+      run: |
+        cd $ENV:APPDATA
+        cd ComfyUI/logs
+        gc main.log
     - name: Upload Compare
       uses: actions/upload-artifact@v4
       continue-on-error: true
+      working-directory: 'C:\'
       if: always()
       with:
         name: startup-diffs
-        path: test-results\src-__tests__-e2e-startup-Load-Window\*.png
+        path: %APPDATA%/ComfyUI/logs/*.log
