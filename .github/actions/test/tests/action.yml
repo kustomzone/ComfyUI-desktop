@@ -17,5 +17,5 @@ runs:
       continue-on-error: true
       if: always()
       with:
-        name: startup-diff.png
-        path: test-results\src-__tests__-e2e-startup-Load-Window\startup-diff.png
+        name: startup-diffs
+        path: test-results\src-__tests__-e2e-startup-Load-Window\*.png
