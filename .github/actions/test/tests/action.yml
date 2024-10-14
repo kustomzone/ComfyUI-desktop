@@ -12,3 +12,10 @@ runs:
       run: |
         print(open('test-results/.last-run.json').read())
         close('test-results/.last-run.json')
+    - name: Upload Compare
+      uses: actions/upload-artifact@v4
+      continue-on-error: true
+      if: always()
+      with:
+        name: startup-diff.png
+        path: test-results\src-__tests__-e2e-startup-Load-Window\startup-diff.png
