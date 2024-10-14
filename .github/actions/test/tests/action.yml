@@ -1,0 +1,14 @@
+name: Run Tests
+description: Run tests via Playwright
+runs:
+  using: composite
+  steps:
+    - name: Run Tests
+      shell: bash
+      runs: |
+        yarn run tests:e2e
+    - name: Display Results
+      shell: python
+      runs: |
+        print(open('test-results/.last-run.json').read())
+        close('test-results/.last-run.json')
