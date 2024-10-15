@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ELECTRON_BRIDGE_API } from 'src/constants';
+import { COMFY_ERROR_MESSAGE, COMFY_FINISHING_MESSAGE, ELECTRON_BRIDGE_API } from 'src/constants';
 import log from 'electron-log/renderer';
 import { ElectronAPI } from 'src/preload';
 import AnimatedLogDisplay from './AnimatedLogDisplay';
@@ -45,7 +45,7 @@ const logContainerStyle: React.CSSProperties = {
   fontFamily: "'Roboto Mono', monospace",
   fontSize: '14px',
   lineHeight: '1.5',
-  color: '#e0e0e0',
+  color: '#9198a1',
   boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
 };
 
@@ -93,7 +93,9 @@ function ProgressOverlay(): React.ReactElement {
         <div style={loadingTextStyle} id="loading-text">
           {status}
         </div>
-        <div style={logContainerStyle}>{status !== 'Finishing...' && <AnimatedLogDisplay logs={logs} />}</div>
+        <div style={logContainerStyle}>
+          {status !== COMFY_FINISHING_MESSAGE && status !== COMFY_ERROR_MESSAGE && <AnimatedLogDisplay logs={logs} />}
+        </div>
       </div>
     </div>
   );

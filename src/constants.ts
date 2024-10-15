@@ -3,7 +3,18 @@ export const IPC_CHANNELS = {
   RENDERER_READY: 'renderer-ready',
   RESTART_APP: 'restart-app',
   LOG_MESSAGE: 'log-message',
-};
+  SHOW_SELECT_DIRECTORY: 'show-select-directory',
+  SELECTED_DIRECTORY: 'selected-directory',
+  OPEN_DIALOG: 'open-dialog',
+  FIRST_TIME_SETUP_COMPLETE: 'first-time-setup-complete',
+} as const;
+
+export const COMFY_ERROR_MESSAGE =
+  'Was not able to start ComfyUI. Please check the logs for more details. You can open it from the tray icon.';
+
+export const COMFY_FINISHING_MESSAGE = 'Finishing...';
+
+export type IPCChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
 export const ELECTRON_BRIDGE_API = 'electronAPI';
 

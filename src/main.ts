@@ -4,39 +4,78 @@ import fs from 'fs';
 import axios from 'axios';
 import path from 'node:path';
 import { SetupTray } from './tray';
-import { IPC_CHANNELS, SENTRY_URL_ENDPOINT } from './constants';
-import dotenv from 'dotenv';
-import { app, BrowserWindow, screen, ipcMain, Menu, MenuItem } from 'electron';
+import {
+  COMFY_ERROR_MESSAGE,
+  COMFY_FINISHING_MESSAGE,
+  IPC_CHANNELS,
+  IPCChannel,
+  SENTRY_URL_ENDPOINT,
+} from './constants';
+import { app, BrowserWindow, dialog, screen, ipcMain, Menu, MenuItem } from 'electron';
 import tar from 'tar';
 import log from 'electron-log/main';
 import * as Sentry from '@sentry/electron/main';
-
+import Store from 'electron-store';
 import { updateElectronApp, UpdateSourceType } from 'update-electron-app';
 import * as net from 'net';
+import { graphics } from 'systeminformation';
+import { createModelConfigFiles, readBasePathFromConfig } from './config/extra_model_config';
 
-updateElectronApp({
-  updateSource: {
-    type: UpdateSourceType.StaticStorage,
-    baseUrl: `https://updater.comfy.org/${process.platform}/${process.arch}`,
-  },
-  logger: log,
-  updateInterval: '2 hours',
-});
+let comfyServerProcess: ChildProcess | null = null;
+const host = '127.0.0.1';
+let port = 8188;
+let mainWindow: BrowserWindow | null;
+let store: Store<StoreType> | null;
+const messageQueue: Array<any> = []; // Stores mesaages before renderer is ready.
 
+import { StoreType } from './store';
 log.initialize();
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-import('electron-squirrel-startup').then((ess) => {
-  const { default: check } = ess;
-  if (check) {
+
+// Register the quit handlers regardless of single instance lock and before squirrel startup events.
+// Quit when all windows are closed, except on macOS. There, it's common
+// for applications and their menu bar to stay active until the user quits
+// explicitly with Cmd + Q.
+app.on('window-all-closed', () => {
+  log.info('Window all closed');
+  if (process.platform !== 'darwin') {
+    log.info('Quitting ComfyUI because window all closed');
     app.quit();
   }
 });
 
+app.on('before-quit', async () => {
+  try {
+    log.info('Before-quit: Killing Python server');
+    await killPythonServer();
+  } catch (error) {
+    // Server did NOT exit properly
+    log.error('Python server did not exit properly');
+    log.error(error);
+  }
+  app.exit();
+});
+
+app.on('quit', () => {
+  log.info('Quitting ComfyUI');
+  app.exit();
+});
+
+// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// Run this as early in the main process as possible.
+if (require('electron-squirrel-startup')) {
+  log.info('App already being set up by squirrel. Exiting...');
+  app.quit();
+} else {
+  log.info('Normal startup');
+}
+
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
+  log.info('App already running. Exiting...');
   app.quit();
 } else {
+  store = new Store<StoreType>();
   app.on('second-instance', (event, commandLine, workingDirectory, additionalData) => {
     log.info('Received second instance message!');
     log.info(additionalData);
@@ -46,14 +85,13 @@ if (!gotTheLock) {
       mainWindow.focus();
     }
   });
-}
 
-app.isPackaged &&
-  Sentry.init({
-    dsn: SENTRY_URL_ENDPOINT,
-    autoSessionTracking: false,
+  app.isPackaged &&
+    Sentry.init({
+      dsn: SENTRY_URL_ENDPOINT,
+      autoSessionTracking: false,
 
-    /* //WIP gather and send log from main 
+      /* //WIP gather and send log from main 
     beforeSend(event, hint) {
       hint.attachments = [
         {
@@ -64,13 +102,107 @@ app.isPackaged &&
       ];
       return event;
     }, */
-    integrations: [
-      Sentry.childProcessIntegration({
-        breadcrumbs: ['abnormal-exit', 'killed', 'crashed', 'launch-failed', 'oom', 'integrity-failure'],
-        events: ['abnormal-exit', 'killed', 'crashed', 'launch-failed', 'oom', 'integrity-failure'],
-      }),
-    ],
+      integrations: [
+        Sentry.childProcessIntegration({
+          breadcrumbs: ['abnormal-exit', 'killed', 'crashed', 'launch-failed', 'oom', 'integrity-failure'],
+          events: ['abnormal-exit', 'killed', 'crashed', 'launch-failed', 'oom', 'integrity-failure'],
+        }),
+      ],
+    });
+
+  graphics()
+    .then((graphicsInfo) => {
+      log.info('GPU Info: ', graphicsInfo);
+
+      const gpuInfo = graphicsInfo.controllers.map((gpu, index) => ({
+        [`gpu_${index}`]: {
+          vendor: gpu.vendor,
+          model: gpu.model,
+          vram: gpu.vram,
+          driver: gpu.driverVersion,
+        },
+      }));
+
+      // Combine all GPU info into a single object
+      const allGpuInfo = Object.assign({}, ...gpuInfo);
+      log.info('GPU Info: ', allGpuInfo);
+      // Set Sentry context with all GPU information
+      Sentry.setContext('gpus', allGpuInfo);
+    })
+    .catch((e) => {
+      log.error('Error getting GPU info: ', e);
+    });
+
+  // This method will be called when Electron has finished
+  // initialization and is ready to create browser windows.
+  // Some APIs can only be used after this event occurs.
+
+  app.on('ready', async () => {
+    log.info('App ready');
+
+    app.on('activate', async () => {
+      // On OS X it's common to re-create a window in the app when the
+      // dock icon is clicked and there are no other windows open.
+      if (BrowserWindow.getAllWindows().length === 0) {
+        const { userResourcesPath } = await determineResourcesPaths();
+        createWindow(userResourcesPath);
+      }
+    });
+
+    try {
+      await createWindow();
+      mainWindow.on('close', () => {
+        mainWindow = null;
+        app.quit();
+      });
+      ipcMain.on(IPC_CHANNELS.RENDERER_READY, () => {
+        log.info('Received renderer-ready message!');
+        // Send all queued messages
+        while (messageQueue.length > 0) {
+          const message = messageQueue.shift();
+          log.info('Sending queued message ', message.channel);
+          mainWindow.webContents.send(message.channel, message.data);
+        }
+      });
+      ipcMain.handle(IPC_CHANNELS.OPEN_DIALOG, (event, options: Electron.OpenDialogOptions) => {
+        log.info('Open dialog');
+        return dialog.showOpenDialogSync({
+          ...options,
+          defaultPath: getDefaultUserResourcesPath(),
+        });
+      });
+      await handleFirstTimeSetup();
+      const { userResourcesPath, appResourcesPath, pythonInstallPath, modelConfigPath, basePath } =
+        await determineResourcesPaths();
+      SetupTray(mainWindow, userResourcesPath);
+      port = await findAvailablePort(8000, 9999).catch((err) => {
+        log.error(`ERROR: Failed to find available port: ${err}`);
+        throw err;
+      });
+
+      sendProgressUpdate('Setting up Python Environment...');
+      const pythonInterpreterPath = await setupPythonEnvironment(appResourcesPath, pythonInstallPath);
+      sendProgressUpdate('Starting Comfy Server...');
+      await launchPythonServer(pythonInterpreterPath, appResourcesPath, modelConfigPath, basePath);
+      updateElectronApp({
+        updateSource: {
+          type: UpdateSourceType.StaticStorage,
+          baseUrl: `https://updater.comfy.org/${process.platform}/${process.arch}`,
+        },
+        logger: log,
+        updateInterval: '2 hours',
+      });
+    } catch (error) {
+      log.error(error);
+      sendProgressUpdate(COMFY_ERROR_MESSAGE);
+    }
+
+    ipcMain.on(IPC_CHANNELS.RESTART_APP, () => {
+      log.info('Received restart app message!');
+      restartApp();
+    });
   });
+}
 
 function loadComfyIntoMainWindow() {
   if (!mainWindow) {
@@ -88,6 +220,8 @@ async function loadRendererIntoMainWindow(): Promise<void> {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     log.info('Loading Vite Dev Server');
     await mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    log.info('Opened Vite Dev Server');
+    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
@@ -98,12 +232,6 @@ function restartApp() {
   app.relaunch();
   app.quit();
 }
-
-let pythonProcess: ChildProcess | null = null;
-const host = '127.0.0.1';
-let port = 8188;
-let mainWindow: BrowserWindow | null;
-const messageQueue: Array<any> = []; // Stores mesaages before renderer is ready.
 
 function buildMenu(): Menu {
   const isMac = process.platform === 'darwin';
@@ -146,32 +274,55 @@ function buildMenu(): Menu {
  * @param userResourcesPath The path to the user's resources.
  * @returns The main window.
  */
-export const createWindow = async (userResourcesPath: string): Promise<BrowserWindow> => {
+export const createWindow = async (userResourcesPath?: string): Promise<BrowserWindow> => {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
+
+  // Retrieve stored window size, or use default if not available
+  const storedWidth = store.get('windowWidth', width);
+  const storedHeight = store.get('windowHeight', height);
+  const storedX = store.get('windowX');
+  const storedY = store.get('windowY');
+
   if (mainWindow) {
     log.info('Main window already exists');
     return mainWindow;
   }
   mainWindow = new BrowserWindow({
     title: 'ComfyUI',
-    width: width,
-    height: height,
+    width: storedWidth,
+    height: storedHeight,
+    x: storedX,
+    y: storedY,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: true, // Enable Node.js integration
+      nodeIntegration: true,
       contextIsolation: true,
     },
     autoHideMenuBar: true,
   });
-
+  log.info('Loading renderer into main window');
   await loadRendererIntoMainWindow();
+  log.info('Renderer loaded into main window');
 
   createComfyDirectories('C:\\Users\\runneradmin\\comfyui-electron');
 
   // Set up the System Tray Icon for all platforms
   // Returns a tray so you can set a global var to access.
-  SetupTray(mainWindow, userResourcesPath);
+  if (userResourcesPath) {
+    SetupTray(mainWindow, userResourcesPath);
+  }
+
+  const updateBounds = () => {
+    const { width, height, x, y } = mainWindow.getBounds();
+    store.set('windowWidth', width);
+    store.set('windowHeight', height);
+    store.set('windowX', x);
+    store.set('windowY', y);
+  };
+
+  mainWindow.on('resize', updateBounds);
+  mainWindow.on('move', updateBounds);
 
   mainWindow.on('close', (e: Electron.Event) => {
     // Mac Only Behavior
@@ -180,6 +331,7 @@ export const createWindow = async (userResourcesPath: string): Promise<BrowserWi
       mainWindow.hide();
       app.dock.hide();
     }
+    mainWindow = null;
   });
 
   const menu = buildMenu();
@@ -187,11 +339,6 @@ export const createWindow = async (userResourcesPath: string): Promise<BrowserWi
 
   return mainWindow;
 };
-
-// Server Heartbeat Listener Variable
-async function serverHeartBeat(): Promise<boolean> {
-  return isComfyServerReady(host, port);
-}
 
 const isComfyServerReady = async (host: string, port: number): Promise<boolean> => {
   const url = `http://${host}:${port}/queue`;
@@ -226,7 +373,8 @@ let spawnServerTimeout: NodeJS.Timeout = null;
 const launchPythonServer = async (
   pythonInterpreterPath: string,
   appResourcesPath: string,
-  userResourcesPath: string
+  modelConfigPath: string,
+  basePath: string
 ) => {
   const isServerRunning = await isComfyServerReady(host, port);
   if (isServerRunning) {
@@ -239,9 +387,9 @@ const launchPythonServer = async (
 
   return new Promise<void>(async (resolve, reject) => {
     const scriptPath = path.join(appResourcesPath, 'ComfyUI', 'main.py');
-    const userDirectoryPath = path.join(userResourcesPath, 'user');
-    const inputDirectoryPath = path.join(userResourcesPath, 'input');
-    const outputDirectoryPath = path.join(userResourcesPath, 'output');
+    const userDirectoryPath = path.join(basePath, 'user');
+    const inputDirectoryPath = path.join(basePath, 'input');
+    const outputDirectoryPath = path.join(basePath, 'output');
     const comfyMainCmd = [
       scriptPath,
       '--user-directory',
@@ -253,13 +401,15 @@ const launchPythonServer = async (
       ...(process.env.COMFYUI_CPU_ONLY === 'true' ? ['--cpu'] : []),
       '--front-end-version',
       'Comfy-Org/ComfyUI_frontend@latest',
+      '--extra-model-paths-config',
+      modelConfigPath,
       '--port',
       port.toString(),
     ];
 
     log.info(`Starting ComfyUI using port ${port}.`);
 
-    pythonProcess = spawnPython(pythonInterpreterPath, comfyMainCmd, path.dirname(scriptPath), {
+    comfyServerProcess = spawnPython(pythonInterpreterPath, comfyMainCmd, path.dirname(scriptPath), {
       logFile: 'comfyui',
       stdx: true,
     });
@@ -275,7 +425,7 @@ const launchPythonServer = async (
       }
       const isReady = await isComfyServerReady(host, port);
       if (isReady) {
-        sendProgressUpdate('Finishing...');
+        sendProgressUpdate(COMFY_FINISHING_MESSAGE);
         log.info('Python server is ready');
 
         //For now just replace the source of the main window to the python server
@@ -292,139 +442,39 @@ const launchPythonServer = async (
   });
 };
 
-function getResourcesPaths() {
-  const { userResourcesPath, appResourcesPath } = app.isPackaged
-    ? {
-        // production: install python to per-user application data dir
-        userResourcesPath: process.platform === 'win32' ? windowsLocalAppData : app.getPath('userData'),
-        appResourcesPath: process.resourcesPath,
-      }
-    : {
-        // development: install python to in-tree assets dir
-        userResourcesPath: path.join(app.getAppPath(), 'assets'),
-        appResourcesPath: path.join(app.getAppPath(), 'assets'),
-      };
-
-  return { userResourcesPath, appResourcesPath };
-}
-
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-const windowsLocalAppData = path.join(app.getPath('home'), 'comfyui-electron');
-log.info('Windows Local App Data directory: ', windowsLocalAppData);
-app.on('ready', async () => {
-  log.info('App ready');
-
-  const { userResourcesPath, appResourcesPath } = getResourcesPaths();
-  log.info(`userResourcesPath: ${userResourcesPath}`);
-  log.info(`appResourcesPath: ${appResourcesPath}`);
-
-  try {
-    dotenv.config({ path: path.join(appResourcesPath, 'ComfyUI', '.env') });
-  } catch {
-    // if no .env file, skip it
-  }
-
-  createDirIfNotExists(userResourcesPath);
-
-  try {
-    await createWindow(userResourcesPath);
-    mainWindow.on('close', () => {
-      mainWindow = null;
-      app.quit();
-    });
-    ipcMain.on(IPC_CHANNELS.RENDERER_READY, () => {
-      log.info('Received renderer-ready message!');
-      // Send all queued messages
-      while (messageQueue.length > 0) {
-        const message = messageQueue.shift();
-        log.info('Sending queued message ', message.channel);
-        mainWindow.webContents.send(message.channel, message.data);
-      }
-    });
-    port = await findAvailablePort(8000, 9999).catch((err) => {
-      log.error(`ERROR: Failed to find available port: ${err}`);
-      throw err;
-    });
-    sendProgressUpdate('Setting up comfy environment...');
-    createComfyDirectories(userResourcesPath);
-    const pythonRootPath = path.join(userResourcesPath, 'python');
-    const pythonInterpreterPath =
-      process.platform === 'win32'
-        ? path.join(pythonRootPath, 'python.exe')
-        : path.join(pythonRootPath, 'bin', 'python');
-    sendProgressUpdate('Setting up Python Environment...');
-    await setupPythonEnvironment(pythonInterpreterPath, appResourcesPath, userResourcesPath);
-    sendProgressUpdate('Starting Comfy Server...');
-    await launchPythonServer(pythonInterpreterPath, appResourcesPath, userResourcesPath);
-  } catch (error) {
-    log.error(error);
-    sendProgressUpdate(
-      'Was not able to start ComfyUI. Please check the logs for more details. You can open it from the tray icon.'
-    );
-  }
-
-  ipcMain.on(IPC_CHANNELS.RESTART_APP, () => {
-    log.info('Received restart app message!');
-    restartApp();
-  });
-});
-
-/**  Interval to send progress updates to the renderer. */
-let progressInterval: NodeJS.Timeout | null = null;
-interface ProgressOptions {
-  endPercentage?: number;
-  duration?: number;
-  steps?: number;
-  overwrite?: boolean;
-}
-
 function sendProgressUpdate(status: string): void {
   if (mainWindow) {
     log.info('Sending progress update to renderer ' + status);
-
-    const sendUpdate = (status: string) => {
-      const newMessage = {
-        channel: IPC_CHANNELS.LOADING_PROGRESS,
-        data: {
-          status,
-        },
-      };
-      if (!mainWindow.webContents || mainWindow.webContents.isLoading()) {
-        log.info('Queueing message since renderer is not ready yet.');
-        messageQueue.push(newMessage);
-        return;
-      }
-
-      if (messageQueue.length > 0) {
-        while (messageQueue.length > 0) {
-          const message = messageQueue.shift();
-          log.info('Sending queued message ', message.channel, message.data);
-          mainWindow.webContents.send(message.channel, message.data);
-        }
-      }
-      mainWindow.webContents.send(newMessage.channel, newMessage.data);
-    };
-    sendUpdate(status);
+    sendRendererMessage(IPC_CHANNELS.LOADING_PROGRESS, {
+      status,
+    });
   }
 }
 
-app.on('before-quit', () => {
-  if (progressInterval) {
-    clearInterval(progressInterval);
+const sendRendererMessage = (channel: IPCChannel, data: any) => {
+  const newMessage = {
+    channel: channel,
+    data: data,
+  };
+  if (!mainWindow.webContents || mainWindow.webContents.isLoading()) {
+    log.info('Queueing message since renderer is not ready yet.');
+    messageQueue.push(newMessage);
+    return;
   }
-});
 
-app.on('before-quit', () => {
-  if (progressInterval) {
-    clearInterval(progressInterval);
+  if (messageQueue.length > 0) {
+    while (messageQueue.length > 0) {
+      const message = messageQueue.shift();
+      log.info('Sending queued message ', message.channel, message.data);
+      mainWindow.webContents.send(message.channel, message.data);
+    }
   }
-});
+  mainWindow.webContents.send(newMessage.channel, newMessage.data);
+};
 
 const killPythonServer = async (): Promise<void> => {
-  if (pythonProcess) {
-    log.info('Killing python server.');
+  if (comfyServerProcess) {
+    log.info('Killing ComfyUI python server.');
 
     return new Promise<void>((resolve, reject) => {
       // Set up a timeout in case the process doesn't exit
@@ -433,15 +483,15 @@ const killPythonServer = async (): Promise<void> => {
       }, 10000);
 
       // Listen for the 'exit' event
-      pythonProcess.once('exit', (code, signal) => {
+      comfyServerProcess.once('exit', (code, signal) => {
         clearTimeout(timeout);
         log.info(`Python server exited with code ${code} and signal ${signal}`);
-        pythonProcess = null;
+        comfyServerProcess = null;
         resolve();
       });
 
       // Attempt to kill the process
-      const result = pythonProcess.kill();
+      const result = comfyServerProcess.kill();
       if (!result) {
         clearTimeout(timeout);
         reject(new Error('Failed to initiate kill signal for python server'));
@@ -449,43 +499,6 @@ const killPythonServer = async (): Promise<void> => {
     });
   }
 };
-
-app.on('before-quit', async () => {
-  try {
-    await killPythonServer();
-  } catch (error) {
-    // Server did NOT exit properly
-    log.error('Python server did not exit properly');
-    log.error(error);
-  }
-  app.exit();
-});
-
-app.on('quit', () => {
-  log.info('Quitting ComfyUI');
-  app.exit();
-});
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  log.info('Window all closed');
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (process.platform === 'darwin') {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      const { userResourcesPath } = getResourcesPaths();
-      createWindow(userResourcesPath);
-    }
-  }
-});
 
 const spawnPython = (
   pythonInterpreterPath: string,
@@ -537,64 +550,60 @@ const spawnPythonAsync = (
   cmd: string[],
   cwd: string,
   options = { stdx: true }
-): Promise<{ exitCode: number | null; stdout: string; stderr: string }> => {
+): Promise<{ exitCode: number | null }> => {
   return new Promise((resolve, reject) => {
     log.info(`Spawning python process with command: ${cmd.join(' ')} in directory: ${cwd}`);
     const pythonProcess: ChildProcess = spawn(pythonInterpreterPath, cmd, { cwd });
 
-    let stdout = '';
-    let stderr = '';
+    const cleanup = () => {
+      pythonProcess.removeAllListeners();
+    };
 
     if (options.stdx) {
       log.info('Setting up python process stdout/stderr listeners');
       pythonProcess.stderr.on('data', (data) => {
         const message = data.toString();
-        stderr += message;
         log.error(message);
         if (mainWindow) {
-          log.info(`Sending log message to renderer: ${message}`);
           mainWindow.webContents.send(IPC_CHANNELS.LOG_MESSAGE, message);
         }
       });
       pythonProcess.stdout.on('data', (data) => {
         const message = data.toString();
-        stdout += message;
         log.info(message);
         if (mainWindow) {
-          log.info(`Sending log message to renderer: ${message}`);
           mainWindow.webContents.send(IPC_CHANNELS.LOG_MESSAGE, message);
         }
       });
     }
+
     pythonProcess.on('close', (code) => {
+      cleanup();
       log.info(`Python process exited with code ${code}`);
-      resolve({ exitCode: code, stdout, stderr });
+      resolve({ exitCode: code });
     });
 
     pythonProcess.on('error', (err) => {
+      cleanup();
       log.error(`Failed to start Python process: ${err}`);
       reject(err);
-    });
-
-    process.on('exit', () => {
-      log.warn('Parent process exiting, killing Python process');
-      pythonProcess.kill();
     });
   });
 };
 
-async function setupPythonEnvironment(
-  pythonInterpreterPath: string,
-  appResourcesPath: string,
-  userResourcesPath: string
-) {
-  const pythonRootPath = path.join(userResourcesPath, 'python');
-  const pythonRecordPath = path.join(pythonRootPath, 'INSTALLER');
+async function setupPythonEnvironment(appResourcesPath: string, pythonResourcesPath: string) {
+  const pythonRootPath = path.join(pythonResourcesPath, 'python');
+  const pythonInterpreterPath =
+    process.platform === 'win32' ? path.join(pythonRootPath, 'python.exe') : path.join(pythonRootPath, 'bin', 'python');
+  const pythonRecordPath = path.join(pythonInterpreterPath, 'INSTALLER');
   try {
     // check for existence of both interpreter and INSTALLER record to ensure a correctly installed python env
+    log.info(
+      `Checking for existence of python interpreter at ${pythonInterpreterPath} and INSTALLER record at ${pythonRecordPath}`
+    );
     await Promise.all([fsPromises.access(pythonInterpreterPath), fsPromises.access(pythonRecordPath)]);
   } catch {
-    log.info('Running one-time python installation on first startup...');
+    log.info(`Running one-time python installation on first startup at ${pythonResourcesPath} and ${pythonRootPath}`);
 
     try {
       // clean up any possible existing non-functional python env
@@ -604,9 +613,10 @@ async function setupPythonEnvironment(
     }
 
     const pythonTarPath = path.join(appResourcesPath, 'python.tgz');
+    log.info(`Extracting python bundle from ${pythonTarPath} to ${pythonResourcesPath}`);
     await tar.extract({
       file: pythonTarPath,
-      cwd: userResourcesPath,
+      cwd: pythonResourcesPath,
       strict: true,
     });
 
@@ -630,22 +640,11 @@ async function setupPythonEnvironment(
         'install',
         '--no-index',
         '--no-deps',
-        '--verbose',
         ...(await fsPromises.readdir(wheelsPath)).map((x) => path.join(wheelsPath, x)),
       ];
     } else {
       const reqPath = path.join(pythonRootPath, 'requirements.compiled');
-      rehydrateCmd = [
-        '-m',
-        'uv',
-        'pip',
-        'install',
-        '-r',
-        reqPath,
-        '--index-strategy',
-        'unsafe-best-match',
-        '--verbose',
-      ];
+      rehydrateCmd = ['-m', 'uv', 'pip', 'install', '-r', reqPath, '--index-strategy', 'unsafe-best-match'];
     }
 
     //TODO(robinhuang): remove this once uv is included in the python bundle.
@@ -678,12 +677,14 @@ async function setupPythonEnvironment(
       throw new Error('Python rehydration failed');
     }
   }
+  return pythonInterpreterPath;
 }
 
 type DirectoryStructure = (string | [string, string[]])[];
 
 // Create directories needed by ComfyUI in the user's data directory.
 function createComfyDirectories(localComfyDirectory: string): void {
+  log.info(`Creating ComfyUI directories in ${localComfyDirectory}`);
   const directories: DirectoryStructure = [
     'custom_nodes',
     'input',
@@ -792,4 +793,90 @@ function findAvailablePort(startPort: number, endPort: number): Promise<number> 
 
     tryPort(startPort);
   });
+}
+/**
+ * Check if the user has completed the first time setup wizard.
+ * This means the extra_models_config.yaml file exists in the user's data directory.
+ */
+function isFirstTimeSetup(): boolean {
+  const userDataPath = app.getPath('userData');
+  const extraModelsConfigPath = path.join(userDataPath, 'extra_models_config.yaml');
+  return !fs.existsSync(extraModelsConfigPath);
+}
+
+async function selectedInstallDirectory(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    ipcMain.on(IPC_CHANNELS.SELECTED_DIRECTORY, (_event, value) => {
+      log.info('Directory selected:', value);
+      resolve(value);
+    });
+  });
+}
+
+async function handleFirstTimeSetup() {
+  const firstTimeSetup = isFirstTimeSetup();
+  log.info('First time setup:', firstTimeSetup);
+  if (firstTimeSetup) {
+    sendRendererMessage(IPC_CHANNELS.SHOW_SELECT_DIRECTORY, null);
+    const selectedDirectory = await selectedInstallDirectory();
+    createComfyDirectories(selectedDirectory);
+
+    const { modelConfigPath } = await determineResourcesPaths();
+    createModelConfigFiles(modelConfigPath, selectedDirectory);
+  } else {
+    sendRendererMessage(IPC_CHANNELS.FIRST_TIME_SETUP_COMPLETE, null);
+  }
+}
+
+async function determineResourcesPaths(): Promise<{
+  userResourcesPath: string;
+  pythonInstallPath: string;
+  appResourcesPath: string;
+  modelConfigPath: string;
+  basePath: string | null;
+}> {
+  const modelConfigPath = path.join(app.getPath('userData'), 'extra_models_config.yaml');
+  const basePath = await readBasePathFromConfig(modelConfigPath);
+  if (!app.isPackaged) {
+    return {
+      // development: install python to in-tree assets dir
+      userResourcesPath: path.join(app.getAppPath(), 'assets'),
+      pythonInstallPath: path.join(app.getAppPath(), 'assets'),
+      appResourcesPath: path.join(app.getAppPath(), 'assets'),
+      modelConfigPath: modelConfigPath,
+      basePath: basePath,
+    };
+  }
+
+  const defaultUserResourcesPath = getDefaultUserResourcesPath();
+  const defaultPythonInstallPath =
+    process.platform === 'win32'
+      ? path.join(path.dirname(path.dirname(app.getPath('userData'))), 'Local', 'comfyui_electron')
+      : app.getPath('userData');
+
+  const appResourcePath = process.resourcesPath;
+
+  // TODO(robinhuang): Look for extra models yaml file and use that as the userResourcesPath if it exists.
+  return {
+    userResourcesPath: defaultUserResourcesPath,
+    pythonInstallPath: defaultPythonInstallPath,
+    appResourcesPath: appResourcePath,
+    modelConfigPath: modelConfigPath,
+    basePath: basePath,
+  };
+}
+
+function getDefaultUserResourcesPath(): string {
+  return process.platform === 'win32' ? path.join(app.getPath('home'), 'comfyui-electron') : app.getPath('userData');
+}
+
+function dev_getDefaultModelConfigPath(): string {
+  switch (process.platform) {
+    case 'win32':
+      return path.join(app.getAppPath(), 'config', 'model_paths_windows.yaml');
+    case 'darwin':
+      return path.join(app.getAppPath(), 'config', 'model_paths_mac.yaml');
+    default:
+      return path.join(app.getAppPath(), 'config', 'model_paths_linux.yaml');
+  }
 }
