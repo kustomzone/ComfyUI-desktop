@@ -38,7 +38,7 @@ test('Not Packed', async () => {
 test('Load Window', async () => {
   activeWindow = await activeElectronApp.firstWindow();
   await activeWindow.waitForTimeout(1000);
-  await expect(activeWindow.getByText(new RegExp('^(Setting|Starting)$'),{exact:false})).toBeVisible({timeout:20000});
+  await expect(activeWindow.getByText('Starting',{exact:false})).toBeVisible({timeout:20000});
  // await expect(activeWindow).toHaveScreenshot('startup.png',);
 });
 
