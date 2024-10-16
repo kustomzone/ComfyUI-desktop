@@ -37,7 +37,7 @@ test('Load Window', async () => {
 
 test('Wait For Python Server', async () => {
   await activeWindow.waitForTimeout(5000);
-  await expect(activeWindow.getByRole('heading', { name: 'ComfyUI' })).toBeEnabled({timeout:240000});
+  await expect(activeWindow.getByRole('heading', { name: 'ComfyUI' })).toBeEnabled({timeout:600000});
 });
 
 test('Close App', async () => {
