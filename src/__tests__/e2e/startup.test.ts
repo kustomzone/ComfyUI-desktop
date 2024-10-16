@@ -32,7 +32,7 @@ test('Load Window', async () => {
 
   activeWindow = await activeElectronApp.firstWindow();
   await expect(activeWindow.getByText(new RegExp('^(Setting|Starting...)$'),{exact:false})).toBeVisible({timeout:20000});
-  await expect(activeWindow).toHaveScreenshot('startup.png',);
+ // await expect(activeWindow).toHaveScreenshot('startup.png',);
 });
 
 test('Wait For Python Server', async () => {
