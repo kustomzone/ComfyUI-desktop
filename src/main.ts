@@ -711,7 +711,6 @@ function createComfyDirectories(localComfyDirectory: string): void {
       ],
     ],
   ];
-  
   createDirIfNotExists(localComfyDirectory);
 
   directories.forEach((dir: string | [string, string[]]) => {

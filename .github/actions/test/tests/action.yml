@@ -41,12 +41,12 @@ runs:
       continue-on-error: true
       if: always()
       with:
-        name: startup-diffs
+        name: comfyui logs
         path: C:Users/runneradmin/AppData/Roaming/ComfyUI/logs
     - name: Upload elctron
       uses: actions/upload-artifact@v4
       continue-on-error: true
       if: always()
       with:
-        name: startup-diffs
+        name: electronlogs
         path: C:/Users/runneradmin/AppData/Roaming/Electron/logs
