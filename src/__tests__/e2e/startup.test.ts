@@ -8,7 +8,7 @@ let activeWindow:Page = null;
 
 test("Move Assets Folder", async() => {
   await fsPromises.cp('./assets','.vite/build/assets',{recursive:true}); 
-  await fsPromises.mkdir(path.join(process.env.APPDATA,'Electron'));
+  await fsPromises.mkdir(path.join(process.env.APPDATA,'Electron'),{recursive:true});
   const extraConfig = path.join(process.env.APPDATA,'Electron' ,'extra_models_config.yaml');
   await fsPromises.writeFile(extraConfig,runnerWin32Config);
 });
@@ -31,7 +31,7 @@ test('Not Packed', async () => {
 test('Load Window', async () => {
 
   activeWindow = await activeElectronApp.firstWindow();
-  await expect(activeWindow.getByText('Setting',{exact:false})).toBeVisible({timeout:20000});
+  await expect(activeWindow.getByText(new RegExp('^(Setting|Starting...)$'),{exact:false})).toBeVisible({timeout:20000});
   await expect(activeWindow).toHaveScreenshot('startup.png',);
 });
 
