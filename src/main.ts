@@ -305,7 +305,6 @@ export const createWindow = async (userResourcesPath?: string): Promise<BrowserW
   await loadRendererIntoMainWindow();
   log.info('Renderer loaded into main window');
 
-
   // Set up the System Tray Icon for all platforms
   // Returns a tray so you can set a global var to access.
   if (userResourcesPath) {
@@ -712,7 +711,7 @@ function createComfyDirectories(localComfyDirectory: string): void {
       ],
     ],
   ];
-  log.log("Created: ", localComfyDirectory);
+  
   createDirIfNotExists(localComfyDirectory);
 
   directories.forEach((dir: string | [string, string[]]) => {
