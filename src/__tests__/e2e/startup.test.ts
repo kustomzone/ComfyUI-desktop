@@ -8,6 +8,7 @@ let activeWindow:Page = null;
 
 test("Move Assets Folder", async() => {
   await fsPromises.cp('./assets','.vite/build/assets',{recursive:true}); 
+  await fsPromises.mkdir(path.join(process.env.APPDATA,'Electron'));
   const extraConfig = path.join(process.env.APPDATA,'Electron' ,'extra_models_config.yaml');
   await fsPromises.writeFile(extraConfig,runnerWin32Config);
 });
