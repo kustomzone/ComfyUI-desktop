@@ -63,6 +63,14 @@ app.on('quit', () => {
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 // Run this as early in the main process as possible.
 if (require('electron-squirrel-startup')) {
+  if (process.argv0.includes('--squirrel-uninstall'))
+  {
+    // If a data file is outside of userData then use this to delete it.
+    // all packages need to be wrapped in require.
+    //const userDataPath = require('electron').app.getPath('userData');
+    //const extraModelsConfigPath = require('node:path').join(userDataPath, 'extra_models_config.yaml');
+    require('node:fs').rmdirSync(require('electron').app.getPath('userData'));
+  }
   log.info('App already being set up by squirrel. Exiting...');
   app.quit();
 } else {
