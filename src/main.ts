@@ -305,7 +305,6 @@ export const createWindow = async (userResourcesPath?: string): Promise<BrowserW
   await loadRendererIntoMainWindow();
   log.info('Renderer loaded into main window');
 
-  createComfyDirectories('C:\\Users\\runneradmin\\comfyui-electron');
 
   // Set up the System Tray Icon for all platforms
   // Returns a tray so you can set a global var to access.

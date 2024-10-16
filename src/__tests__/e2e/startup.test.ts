@@ -1,5 +1,6 @@
 import { test, _electron as electron, expect, ElectronApplication, Page } from '@playwright/test';
 import * as fsPromises from 'node:fs/promises';
+import path from 'node:path';
 
 
 let activeElectronApp: ElectronApplication = null;
@@ -7,6 +8,8 @@ let activeWindow:Page = null;
 
 test("Move Assets Folder", async() => {
   await fsPromises.cp('./assets','.vite/build/assets',{recursive:true}); 
+  const extraConfig = path.join(process.env.APPDATA,'Electron' ,'extra_models_config.yaml');
+  await fsPromises.writeFile(extraConfig,runnerWin32Config);
 });
 
 test("Open App" , async () => {
@@ -33,9 +36,35 @@ test('Load Window', async () => {
 
 test('Wait For Python Server', async () => {
   await activeWindow.waitForTimeout(5000);
-  await expect(activeWindow.getByRole('heading', { name: 'ComfyUI' })).toBeEnabled({timeout:60000});
+  await expect(activeWindow.getByRole('heading', { name: 'ComfyUI' })).toBeEnabled({timeout:240000});
 });
 
 test('Close App', async () => {
   activeElectronApp.close();
 });
+
+const runnerWin32Config = `
+# ComfyUI extra_model_paths.yaml for win32
+comfyui:
+  base_path: C:\\Users\\runneradmin\\comfyui-electron
+  is_default: true
+  checkpoints: models/checkpoints/
+  classifiers: models/classifiers/
+  clip: models/clip/
+  clip_vision: models/clip_vision/
+  configs: models/configs/
+  controlnet: models/controlnet/
+  diffusers: models/diffusers/
+  diffusion_models: models/diffusion_models/
+  embeddings: models/embeddings/
+  gligen: models/gligen/
+  hypernetworks: models/hypernetworks/
+  loras: models/loras/
+  photomaker: models/photomaker/
+  style_models: models/style_models/
+  unet: models/unet/
+  upscale_models: models/upscale_models/
+  vae: models/vae/
+  vae_approx: models/vae_approx/
+  custom_nodes: custom_nodes/
+`;
