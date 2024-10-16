@@ -6,9 +6,16 @@ import path from 'node:path';
 let activeElectronApp: ElectronApplication = null;
 let activeWindow:Page = null;
 
+const runnerName = 'runneradmin';
+
 test("Move Assets Folder", async() => {
   await fsPromises.cp('./assets','.vite/build/assets',{recursive:true}); 
   await fsPromises.mkdir(path.join(process.env.APPDATA,'Electron'),{recursive:true});
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\custom_nodes`,{recursive:true});
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\input`,{recursive:true});
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\output`,{recursive:true});
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\user\\default`,{recursive:true});
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\models`,{recursive:true});
   const extraConfig = path.join(process.env.APPDATA,'Electron' ,'extra_models_config.yaml');
   await fsPromises.writeFile(extraConfig,runnerWin32Config);
 });
@@ -29,15 +36,15 @@ test('Not Packed', async () => {
 });
 
 test('Load Window', async () => {
-
   activeWindow = await activeElectronApp.firstWindow();
+  await activeWindow.waitForTimeout(1000);
   await expect(activeWindow.getByText(new RegExp('^(Setting|Starting...)$'),{exact:false})).toBeVisible({timeout:20000});
  // await expect(activeWindow).toHaveScreenshot('startup.png',);
 });
 
 test('Wait For Python Server', async () => {
   await activeWindow.waitForTimeout(5000);
-  await expect(activeWindow.getByRole('heading', { name: 'ComfyUI' })).toBeEnabled({timeout:600000});
+  await expect(activeWindow.getByRole('button', { name: 'Save' })).toBeEnabled({timeout:600000});
 });
 
 test('Close App', async () => {
@@ -47,7 +54,7 @@ test('Close App', async () => {
 const runnerWin32Config = `
 # ComfyUI extra_model_paths.yaml for win32
 comfyui:
-  base_path: C:\\Users\\runneradmin\\comfyui-electron
+  base_path: C:\\Users\\${runnerName}\\comfyui-electron
   is_default: true
   checkpoints: models/checkpoints/
   classifiers: models/classifiers/
