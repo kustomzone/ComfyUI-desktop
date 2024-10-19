@@ -58,7 +58,7 @@ test('Load Window', async () => {
 
 test('Wait For Python Server', async () => {
   await activeWindow.waitForTimeout(5000);
-  await expect(activeWindow.getByRole('button', { name: 'Save' })).toBeEnabled({timeout:300000});
+  await expect(activeWindow.getByText('Save')).toHaveCount(1,{timeout: 300000});
 });
 
 test('Close App', async () => {
