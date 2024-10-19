@@ -43,8 +43,8 @@ runs:
       continue-on-error: true
       if: always()
       with:
-        name: comfyui logs
-        path: C:Users/runneradmin/AppData/Roaming/ComfyUI/logs
+        name: testresults
+        path: ./test-results
     - name: Upload elctron
       uses: actions/upload-artifact@v4
       continue-on-error: true

@@ -8,6 +8,20 @@ let activeWindow:Page = null;
 
 const runnerName = 'runneradmin';
 
+test.afterEach(async ({offline}, testInfo) => {
+  if (testInfo.status !== testInfo.expectedStatus) {
+    if (activeWindow == null) return;
+    // Get a unique place for the screenshot.
+    const screenshotPath = testInfo.outputPath(`failure.png`);
+    // Add it to the report.
+    testInfo.attachments.push({ name: 'screenshot', path: screenshotPath, contentType: 'image/png' });
+    // Take the screenshot itself.
+    
+    await activeWindow.screenshot({ path: screenshotPath, timeout: 5000 });
+  }
+});
+
+
 test("Move Assets Folder", async() => {
   await fsPromises.cp('./assets','.vite/build/assets',{recursive:true}); 
   await fsPromises.mkdir(path.join(process.env.APPDATA,'Electron'),{recursive:true});
