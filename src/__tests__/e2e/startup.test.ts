@@ -2,13 +2,12 @@ import { test, _electron as electron, expect, ElectronApplication, Page } from '
 import * as fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-
 let activeElectronApp: ElectronApplication = null;
-let activeWindow:Page = null;
+let activeWindow: Page = null;
 
 const runnerName = 'runneradmin';
 
-test.afterEach(async ({offline}, testInfo) => {
+test.afterEach(async ({ offline }, testInfo) => {
   if (testInfo.status !== testInfo.expectedStatus) {
     if (activeWindow == null) return;
     // Get a unique place for the screenshot.
@@ -16,27 +15,25 @@ test.afterEach(async ({offline}, testInfo) => {
     // Add it to the report.
     testInfo.attachments.push({ name: 'screenshot', path: screenshotPath, contentType: 'image/png' });
     // Take the screenshot itself.
-    
+
     await activeWindow.screenshot({ path: screenshotPath, timeout: 5000 });
   }
 });
 
-
-test("Move Assets Folder", async() => {
-  await fsPromises.cp('./assets','.vite/build/assets',{recursive:true}); 
-  await fsPromises.mkdir(path.join(process.env.APPDATA,'Electron'),{recursive:true});
-  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\custom_nodes`,{recursive:true});
-  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\input`,{recursive:true});
-  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\output`,{recursive:true});
-  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\user\\default`,{recursive:true});
-  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\models`,{recursive:true});
-  const extraConfig = path.join(process.env.APPDATA,'Electron' ,'extra_models_config.yaml');
-  await fsPromises.writeFile(extraConfig,runnerWin32Config);
+test('Move Assets Folder', async () => {
+  await fsPromises.cp('./assets', '.vite/build/assets', { recursive: true });
+  await fsPromises.mkdir(path.join(process.env.APPDATA, 'Electron'), { recursive: true });
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\custom_nodes`, { recursive: true });
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\input`, { recursive: true });
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\output`, { recursive: true });
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\user\\default`, { recursive: true });
+  await fsPromises.mkdir(`C:\\Users\\${runnerName}\\comfyui-electron\\models`, { recursive: true });
+  const extraConfig = path.join(process.env.APPDATA, 'Electron', 'extra_models_config.yaml');
+  await fsPromises.writeFile(extraConfig, runnerWin32Config);
 });
 
-test("Open App" , async () => {
-  activeElectronApp = await electron.launch({ args: [".vite/build/main.js"] });
-  
+test('Open App', async () => {
+  activeElectronApp = await electron.launch({ args: ['.vite/build/main.js'] });
 });
 
 test('Not Packed', async () => {
@@ -52,13 +49,13 @@ test('Not Packed', async () => {
 test('Load Window', async () => {
   activeWindow = await activeElectronApp.firstWindow();
   await activeWindow.waitForTimeout(1000);
-  await expect(activeWindow.getByText('Starting',{exact:false})).toBeVisible({timeout:20000});
- // await expect(activeWindow).toHaveScreenshot('startup.png',);
+  await expect(activeWindow.getByText('Starting', { exact: false })).toBeVisible({ timeout: 20000 });
+  // await expect(activeWindow).toHaveScreenshot('startup.png',);
 });
 
 test('Wait For Python Server', async () => {
   await activeWindow.waitForTimeout(5000);
-  await expect(activeWindow.getByText('Save')).toHaveCount(1,{timeout: 300000});
+  await expect(activeWindow.getByText('Save')).toHaveCount(1, { timeout: 300000 });
 });
 
 test('Close App', async () => {
