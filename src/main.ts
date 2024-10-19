@@ -405,6 +405,7 @@ const launchPythonServer = async (
       port.toString(),
     ];
 
+    log.info('env vars' , process.env);
     log.info(`Starting ComfyUI using port ${port}.`);
 
     comfyServerProcess = spawnPython(pythonInterpreterPath, comfyMainCmd, path.dirname(scriptPath), {

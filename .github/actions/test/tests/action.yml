@@ -5,6 +5,8 @@ runs:
   steps:
     - name: Run Tests
       shell: bash
+      env: 
+        COMFYUI_CPU_ONLY: true
       run: |
         yarn run test:e2e
     - name: Display Results
