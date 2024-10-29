@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 const {build, createServer} =  require('vite');
 const electronPath = require('electron');
 const {spawn} = require('child_process');

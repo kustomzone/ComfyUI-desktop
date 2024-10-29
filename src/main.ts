@@ -256,10 +256,12 @@ async function loadRendererIntoMainWindow(): Promise<void> {
     log.error('Trying to load renderer into main window but it is not ready yet.');
     return;
   }
-  if (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined') {
+
+  if (process.env.VITE_DEV_SERVER_URL) {
     log.info('Loading Vite Dev Server');
-    await mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     log.info('Opened Vite Dev Server');
+    // Auto Open DevTools:
     //mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, `../renderer/index.html`));
