@@ -13,7 +13,7 @@ declare global {
       viteDevServers: Record<string, import('vite').ViteDevServer>;
     }
     interface ProcessEnv {
-      PUBLISH?: string | boolean;
+      PUBLISH: boolean;
       APPLE_ID: string;
       APPLE_PASSWORD: string;
       APPLE_TEAM_ID: string;

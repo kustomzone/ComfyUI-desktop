@@ -37,7 +37,7 @@ let downloadManager: DownloadManager;
 
 log.initialize();
 
-todesktop.init({
+process.env.TODESKTOP_CI && todesktop.init({
   customLogger: log,
   updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
 });
