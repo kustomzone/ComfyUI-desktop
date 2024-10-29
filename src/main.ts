@@ -37,7 +37,7 @@ let downloadManager: DownloadManager;
 
 log.initialize();
 
-process.env.TODESKTOP_CI && todesktop.init({
+process.env.PUBLISH == true && todesktop.init({
   customLogger: log,
   updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
 });
