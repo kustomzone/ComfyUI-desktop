@@ -37,10 +37,11 @@ let downloadManager: DownloadManager;
 
 log.initialize();
 
-process.env.PUBLISH == true && todesktop.init({
-  customLogger: log,
-  updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
-});
+process.env.PUBLISH == true &&
+  todesktop.init({
+    customLogger: log,
+    updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
+  });
 
 // Register the quit handlers regardless of single instance lock and before squirrel startup events.
 // Quit when all windows are closed, except on macOS. There, it's common
