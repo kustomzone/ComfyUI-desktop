@@ -2,7 +2,7 @@ import { Configuration } from 'electron-builder';
 
 const debugConfig: Configuration = {
   files: ['package.json', 'README.md', 'src/**', '.vite/**'],
-  extraResources: ['./assets/ComfyUI', './assets/python.tgz', './assets/UI'],
+  extraFiles: [ {from: './assets' , to: process.platform === 'darwin' ? './Resources' : './resources'}],
   win: {
     asar: false,
     icon: './assets/UI/Comfy_Logo.ico',
@@ -12,7 +12,7 @@ const debugConfig: Configuration = {
   mac: {
     icon: './assets/UI/Comfy_Logo.icns',
     target: 'zip',
-    sign: null,
+    identity: null,
   },
   linux: {
     icon: './assets/UI/Comfy_Logo_x256.png',
