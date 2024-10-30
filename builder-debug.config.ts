@@ -4,7 +4,6 @@ const debugConfig: Configuration = {
   files: ['package.json', 'README.md', 'src/**', '.vite/**'],
   extraFiles: [ {from: './assets' , to: process.platform === 'darwin' ? './Resources' : './resources'}],
   win: {
-    asar: false,
     icon: './assets/UI/Comfy_Logo.ico',
     target: 'zip',
     signtoolOptions: null,
