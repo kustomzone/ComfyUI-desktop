@@ -48,6 +48,7 @@ export interface ElectronAPI {
     deleteModel: (filename: string, path: string) => Promise<boolean>;
     getAllDownloads: () => Promise<DownloadItem[]>;
   };
+  openExternal: (url: string) => Promise<void>;
 }
 
 const electronAPI: ElectronAPI = {
@@ -137,6 +138,9 @@ const electronAPI: ElectronAPI = {
     getAllDownloads: (): Promise<DownloadItem[]> => {
       return ipcRenderer.invoke(IPC_CHANNELS.GET_ALL_DOWNLOADS);
     },
+  },
+  openExternal: (url: string) => {
+    return ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url);
   },
 };
 

@@ -951,3 +951,9 @@ const rotateLogFiles = (logDir: string, baseName: string) => {
     fs.renameSync(currentLogPath, newLogPath);
   }
 };
+
+// TODO(robinhuang): Pop up a warning and ask user to optionally whitelist URLs.
+ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, url: string) => {
+  log.info(`Opening external URL: ${url}`);
+  await shell.openExternal(url);
+});

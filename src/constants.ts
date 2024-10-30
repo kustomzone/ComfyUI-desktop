@@ -21,6 +21,7 @@ export const IPC_CHANNELS = {
   CANCEL_DOWNLOAD: 'cancel-download',
   DELETE_MODEL: 'delete-model',
   GET_ALL_DOWNLOADS: 'get-all-downloads',
+  OPEN_EXTERNAL: 'open-external',
 } as const;
 
 export const COMFY_ERROR_MESSAGE =
