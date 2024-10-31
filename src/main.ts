@@ -11,7 +11,18 @@ import {
   IPCChannel,
   SENTRY_URL_ENDPOINT,
 } from './constants';
-import { app, BrowserWindow, dialog, screen, ipcMain, Menu, MenuItem, globalShortcut, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  screen,
+  ipcMain,
+  Menu,
+  MenuItem,
+  globalShortcut,
+  shell,
+  webContents,
+} from 'electron';
 import log from 'electron-log/main';
 import * as Sentry from '@sentry/electron/main';
 import Store from 'electron-store';
@@ -231,6 +242,18 @@ if (!gotTheLock) {
 
     ipcMain.handle(IPC_CHANNELS.GET_COMFYUI_URL, () => {
       return `http://${host}:${port}`;
+    });
+
+    ipcMain.on(IPC_CHANNELS.SET_WEBVIEW_WINDOW_HANDLER, (event, webContentsId: number) => {
+      if (!mainWindow) {
+        log.error('Main window not found, cannot set webview window handler');
+        return;
+      }
+
+      webContents.fromId(webContentsId)?.setWindowOpenHandler?.(({ url }) => {
+        shell.openExternal(url);
+        return { action: 'deny' };
+      });
     });
   });
 }

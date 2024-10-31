@@ -32,6 +32,11 @@ export interface ElectronAPI {
    * Open the logs folder in the system's default file explorer.
    */
   openLogsFolder: () => void;
+  /**
+   * Set the window handler for a webview.
+   * @param webviewId
+   */
+  setWebviewWindowHandler: (webviewId: number) => void;
   DownloadManager: {
     onDownloadProgress: (
       callback: (progress: {
@@ -106,6 +111,9 @@ const electronAPI: ElectronAPI = {
   },
   openLogsFolder: () => {
     ipcRenderer.send(IPC_CHANNELS.OPEN_LOGS_FOLDER);
+  },
+  setWebviewWindowHandler: (webviewId: number) => {
+    ipcRenderer.send(IPC_CHANNELS.SET_WEBVIEW_WINDOW_HANDLER, webviewId);
   },
   DownloadManager: {
     onDownloadProgress: (

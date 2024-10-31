@@ -28,10 +28,17 @@ const ComfyUIContainer: React.FC<ComfyUIContainerProps> = ({ comfyPort, preloadS
 
   useEffect(() => {
     const electronAPI: ElectronAPI = (window as any)[ELECTRON_BRIDGE_API];
+    const webview = webviewRef.current;
 
     electronAPI.onOpenDevTools(() => {
       webviewRef.current?.openDevTools();
     });
+
+    if (webview) {
+      webview.addEventListener('dom-ready', () => {
+        electronAPI.setWebviewWindowHandler(webview.getWebContentsId());
+      });
+    }
   }, []);
 
   return (
@@ -42,6 +49,7 @@ const ComfyUIContainer: React.FC<ComfyUIContainerProps> = ({ comfyPort, preloadS
         style={iframeStyle}
         preload={`file://${preloadScript}`}
         ref={webviewRef}
+        allowpopups={true}
       />
     </div>
   );
