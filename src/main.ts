@@ -38,7 +38,6 @@ let downloadManager: DownloadManager;
 
 log.initialize();
 
-
 const comfySettings = new ComfySettings(app.getPath('documents'));
 
 process.env.PUBLISH == true &&
@@ -243,8 +242,7 @@ async function loadRendererIntoMainWindow(): Promise<void> {
     log.info('Loading Vite Dev Server');
     await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     log.info('Opened Vite Dev Server');
-    // Auto Open DevTools:
-    //mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, `../renderer/index.html`));
   }
@@ -399,12 +397,10 @@ export const createWindow = async (userResourcesPath?: string): Promise<BrowserW
     '/renderer/index.html'
   ];
     const approved = approvedHosts.filter((e) => newURL.endsWith(e));
-    log.warn("assasdasasadsasd",approved);
     if (!approved.length)
     {
       event.preventDefault();
     }
-
   });
 
   mainWindow.on('close', (e: Electron.Event) => {
