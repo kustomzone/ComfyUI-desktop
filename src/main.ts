@@ -40,11 +40,11 @@ log.initialize();
 
 const comfySettings = new ComfySettings(app.getPath('documents'));
 
-process.env.PUBLISH == true &&
-  todesktop.init({
-    customLogger: log,
-    updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
-  });
+todesktop.init({
+  customLogger: log,
+  updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
+  autoUpdater: comfySettings.autoUpdate,
+});
 
 // Register the quit handlers regardless of single instance lock and before squirrel startup events.
 // Quit when all windows are closed, except on macOS. There, it's common
