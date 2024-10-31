@@ -23,6 +23,7 @@ module.exports = async ({ appOutDir, packager, outDir }) => {
     }
 
     if (os.platform() === 'darwin') {
+        spawnSync('py -m pip install comfy-cli', [''], { shell: true, stdio:['ignore','ignore','inherit'] });
         spawnSync('yarn run make:assets:macos', [''], { shell: true, stdio: "inherit" });
     }
 

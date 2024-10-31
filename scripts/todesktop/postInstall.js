@@ -18,15 +18,15 @@ async function postInstall() {
         const resultUpgradePip = spawnSync(`py`, ['-3.12', '-m', 'pip' ,'install' ,'--upgrade pip'],{shell:true,stdio: 'ignore'}).toString();
         const resultInstallComfyCLI = spawnSync(`py`, ['-3.12 ','-m' ,'pip' ,'install comfy-cli'], {shell:true,stdio: 'ignore'}).toString();
         console.log("Finish PIP & ComfyCLI Install");
-        const resultComfyManagerInstall = spawnSync('set PATH=C:\\hostedtoolcache\\windows\\Python\\3.12.7\\x64\\Scripts;%PATH% && cd assets && comfy-cli --skip-prompt --here install --fast-deps --nvidia --manager-url https://github.com/Comfy-Org/manager-core && comfy-cli --here standalone && mkdir -p ComfyUI\\user\\default' ,[''],{shell:true,stdio: 'inherit'}).toString();
+        const resultComfyManagerInstall = spawnSync('set PATH=C:\\hostedtoolcache\\windows\\Python\\3.12.7\\x64\\Scripts;%PATH% && yarn run make:assets:nvidia' ,[''],{shell:true,stdio: 'inherit'}).toString();
         console.log("Finish Comfy Manager Install and Rehydration");
     }
 
     if (os.platform() === "darwin") {
-        const dirPath = process.cwd();
-        const shPath = path.join(dirPath, 'scripts', 'signPython.sh');
-        const resultUnixifySH = spawnSync('sed', [`-i ''` , `'s/\\r//g'` , shPath],{shell:true,stdio:'inherit'});
-        const resultPythonInstall = spawnSync('sh', [shPath],{shell:true,stdio: 'pipe'});
+
+        const resultUpgradePip = spawnSync(`py`, ['-3.12', '-m', 'pip' ,'install' ,'--upgrade pip'],{shell:true,stdio: 'ignore'}).toString();
+        const resultInstallComfyCLI = spawnSync(`py`, ['-3.12 ','-m' ,'pip' ,'install comfy-cli'], {shell:true,stdio: 'ignore'}).toString();
+        const resultComfyManagerInstall = spawnSync('yarn run make:assets:macos' ,[''],{shell:true,stdio: 'inherit'}).toString();
 
         // Do not delete, useful if there are build issues with mac
         // TODO: Consider making a global build log as ToDesktop logs can be hit or miss

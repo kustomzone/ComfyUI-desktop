@@ -22,6 +22,7 @@ module.exports = async ({ appOutDir, packager, outDir }) => {
     const mainPath = path.dirname(outDir);
     const assetPath = path.join(mainPath, 'app-wrapper', 'app', 'assets');
     const resourcePath = path.join(appPath, "Contents", "Resources");
+    // Might not need this anymore?
     const result = await fs.rm(path.join(assetPath, "ComfyUI", ".git"), { recursive: true, force: true });
     const result2 = await fs.cp(assetPath, resourcePath, { recursive: true });
   }
