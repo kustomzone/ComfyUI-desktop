@@ -20,16 +20,11 @@ export interface ElectronAPI {
   onLogMessage: (callback: (message: string) => void) => void;
   onFirstTimeSetupComplete: (callback: () => void) => void;
   onDefaultInstallLocation: (callback: (location: string) => void) => void;
-  onComfyUIReady: (callback: (port: number) => void) => void;
   sendReady: () => void;
-  restartApp: () => void;
-  onToggleLogsView: (callback: () => void) => void;
+  restartApp: (customMessage?: string, delay?: number) => void;
   onOpenDevTools: (callback: () => void) => void;
   isPackaged: () => Promise<boolean>;
   openDialog: (options: Electron.OpenDialogOptions) => Promise<string[] | undefined>;
-  getComfyUIUrl: () => Promise<string>;
-  getPreloadScript: () => Promise<string>;
-  getLogs: () => Promise<string[]>;
   /**
    * Open the logs folder in the system's default file explorer.
    */
@@ -65,9 +60,6 @@ const electronAPI: ElectronAPI = {
       callback(value);
     });
   },
-  onComfyUIReady: (callback: (port: number) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.COMFYUI_READY, (_event, port: number) => callback(port));
-  },
   sendReady: () => {
     console.log('Sending ready event to main process');
     ipcRenderer.send(IPC_CHANNELS.RENDERER_READY);
@@ -75,12 +67,9 @@ const electronAPI: ElectronAPI = {
   isPackaged: () => {
     return ipcRenderer.invoke(IPC_CHANNELS.IS_PACKAGED);
   }, //Emulates app.ispackaged in renderer
-  restartApp: (): void => {
-    console.log('Sending restarting app message to main process');
-    ipcRenderer.send(IPC_CHANNELS.RESTART_APP);
-  },
-  onToggleLogsView: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.TOGGLE_LOGS, () => callback());
+  restartApp: (customMessage?: string, delay?: number): void => {
+    console.log('Sending restarting app message to main process with custom message: ', customMessage);
+    ipcRenderer.send(IPC_CHANNELS.RESTART_APP, { customMessage, delay });
   },
   onOpenDevTools: (callback: () => void) => {
     ipcRenderer.on(IPC_CHANNELS.OPEN_DEVTOOLS, () => callback());
@@ -90,15 +79,6 @@ const electronAPI: ElectronAPI = {
   },
   selectSetupDirectory: (directory: string) => {
     ipcRenderer.send(IPC_CHANNELS.SELECTED_DIRECTORY, directory);
-  },
-  getLogs: (): Promise<string[]> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.GET_LOGS);
-  },
-  getComfyUIUrl: (): Promise<string> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.GET_COMFYUI_URL);
-  },
-  getPreloadScript: (): Promise<string> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.GET_PRELOAD_SCRIPT);
   },
   openDialog: (options: Electron.OpenDialogOptions) => {
     return ipcRenderer.invoke(IPC_CHANNELS.OPEN_DIALOG, options);
@@ -140,7 +120,7 @@ const electronAPI: ElectronAPI = {
       return ipcRenderer.invoke(IPC_CHANNELS.RESUME_DOWNLOAD, url);
     },
     deleteModel: (filename: string, path: string): Promise<boolean> => {
-      return ipcRenderer.invoke(IPC_CHANNELS.DELETE_DOWNLOAD, { filename, path });
+      return ipcRenderer.invoke(IPC_CHANNELS.DELETE_MODEL, { filename, path });
     },
     getAllDownloads: (): Promise<DownloadItem[]> => {
       return ipcRenderer.invoke(IPC_CHANNELS.GET_ALL_DOWNLOADS);

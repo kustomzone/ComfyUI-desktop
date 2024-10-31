@@ -11,7 +11,7 @@ import {
   IPCChannel,
   SENTRY_URL_ENDPOINT,
 } from './constants';
-import { app, BrowserWindow, dialog, screen, ipcMain, Menu, MenuItem, globalShortcut, shell } from 'electron';
+import { app, BrowserWindow, dialog, screen, ipcMain, Menu, MenuItem, shell } from 'electron';
 import log from 'electron-log/main';
 import * as Sentry from '@sentry/electron/main';
 import Store from 'electron-store';
@@ -20,22 +20,26 @@ import { graphics } from 'systeminformation';
 import { createModelConfigFiles, readBasePathFromConfig } from './config/extra_model_config';
 import { WebSocketServer } from 'ws';
 import { StoreType } from './store';
-import { createReadStream, watchFile } from 'node:fs';
 import todesktop from '@todesktop/runtime';
 import { PythonEnvironment } from './pythonEnvironment';
 import { DownloadManager } from './models/DownloadManager';
 import { getModelsDirectory } from './utils';
+import { ComfySettings } from './config/comfySettings';
 
 let comfyServerProcess: ChildProcess | null = null;
+let isRestarting: boolean = false; // Prevents double restarts TODO(robinhuang): Remove this once we have a better way to handle restarts. https://github.com/Comfy-Org/electron/issues/149
 const host = '127.0.0.1';
 let port = 8188;
-let mainWindow: BrowserWindow | null;
+let mainWindow: BrowserWindow | null = null;
 let wss: WebSocketServer | null;
-let store: Store<StoreType> | null;
+let store: Store<StoreType> | null = null;
 const messageQueue: Array<any> = []; // Stores mesaages before renderer is ready.
 let downloadManager: DownloadManager;
 
 log.initialize();
+
+
+const comfySettings = new ComfySettings(app.getPath('documents'));
 
 process.env.PUBLISH == true &&
   todesktop.init({
@@ -65,9 +69,6 @@ app.on('before-quit', async () => {
     log.error(error);
   }
 
-  closeWebSocketServer();
-  globalShortcut.unregisterAll();
-
   app.exit();
 });
 
@@ -94,21 +95,10 @@ if (!gotTheLock) {
   });
 
   app.isPackaged &&
+    comfySettings.sendCrashStatistics &&
     Sentry.init({
       dsn: SENTRY_URL_ENDPOINT,
       autoSessionTracking: false,
-
-      /* //WIP gather and send log from main 
-    beforeSend(event, hint) {
-      hint.attachments = [
-        {
-          filename: 'main.log',
-          attachmentType: 'event.attachment',
-          data: readLogMain(),
-        },
-      ];
-      return event;
-    }, */
       integrations: [
         Sentry.childProcessIntegration({
           breadcrumbs: ['abnormal-exit', 'killed', 'crashed', 'launch-failed', 'oom', 'integrity-failure'],
@@ -119,8 +109,6 @@ if (!gotTheLock) {
 
   graphics()
     .then((graphicsInfo) => {
-      log.info('GPU Info: ', graphicsInfo);
-
       const gpuInfo = graphicsInfo.controllers.map((gpu, index) => ({
         [`gpu_${index}`]: {
           vendor: gpu.vendor,
@@ -132,7 +120,6 @@ if (!gotTheLock) {
 
       // Combine all GPU info into a single object
       const allGpuInfo = Object.assign({}, ...gpuInfo);
-      log.info('GPU Info: ', allGpuInfo);
       // Set Sentry context with all GPU information
       Sentry.setContext('gpus', allGpuInfo);
     })
@@ -158,7 +145,11 @@ if (!gotTheLock) {
 
     try {
       await createWindow();
-      startWebSocketServer();
+      if (!mainWindow) {
+        log.error('ERROR: Main window not found!');
+        return;
+      }
+
       mainWindow.on('close', () => {
         mainWindow = null;
         app.quit();
@@ -169,7 +160,9 @@ if (!gotTheLock) {
         while (messageQueue.length > 0) {
           const message = messageQueue.shift();
           log.info('Sending queued message ', message.channel);
-          mainWindow.webContents.send(message.channel, message.data);
+          if (mainWindow) {
+            mainWindow.webContents.send(message.channel, message.data);
+          }
         }
       });
       ipcMain.handle(IPC_CHANNELS.OPEN_DIALOG, (event, options: Electron.OpenDialogOptions) => {
@@ -186,7 +179,11 @@ if (!gotTheLock) {
       });
       await handleFirstTimeSetup();
       const { appResourcesPath, pythonInstallPath, modelConfigPath, basePath } = await determineResourcesPaths();
-      downloadManager = DownloadManager.getInstance(mainWindow, getModelsDirectory(basePath));
+      if (!basePath) {
+        log.error('ERROR: Base path not found!');
+        return;
+      }
+      downloadManager = DownloadManager.getInstance(mainWindow!, getModelsDirectory(basePath));
       port = await findAvailablePort(8000, 9999).catch((err) => {
         log.error(`ERROR: Failed to find available port: ${err}`);
         throw err;
@@ -196,7 +193,6 @@ if (!gotTheLock) {
       const pythonEnvironment = new PythonEnvironment(pythonInstallPath, appResourcesPath, spawnPythonAsync);
       await pythonEnvironment.setup();
 
-      installElectronAdapter(appResourcesPath);
       SetupTray(
         mainWindow,
         basePath,
@@ -205,9 +201,6 @@ if (!gotTheLock) {
           log.info('Resetting install location');
           fs.rmSync(modelConfigPath);
           restartApp();
-        },
-        () => {
-          mainWindow.webContents.send(IPC_CHANNELS.TOGGLE_LOGS);
         },
         pythonEnvironment
       );
@@ -218,30 +211,18 @@ if (!gotTheLock) {
       sendProgressUpdate(COMFY_ERROR_MESSAGE);
     }
 
-    ipcMain.on(IPC_CHANNELS.RESTART_APP, () => {
-      log.info('Received restart app message!');
-      restartApp();
-    });
-
-    ipcMain.handle(IPC_CHANNELS.GET_COMFYUI_URL, () => {
-      return `http://${host}:${port}`;
-    });
-
-    ipcMain.handle(IPC_CHANNELS.GET_LOGS, async (): Promise<string[]> => {
-      return await readComfyUILogs();
-    });
+    ipcMain.on(
+      IPC_CHANNELS.RESTART_APP,
+      (event, { customMessage, delay }: { customMessage?: string; delay?: number }) => {
+        log.info('Received restart app message!');
+        if (customMessage) {
+          restartApp({ customMessage, delay });
+        } else {
+          restartApp({ delay });
+        }
+      }
+    );
   });
-}
-
-async function readComfyUILogs(): Promise<string[]> {
-  try {
-    const logContent = await fsPromises.readFile(path.join(app.getPath('logs'), 'comfyui.log'), 'utf-8');
-    const logs = logContent.split('\n');
-    return logs;
-  } catch (error) {
-    console.error('Error reading log file:', error);
-    return [];
-  }
 }
 
 function loadComfyIntoMainWindow() {
@@ -249,7 +230,7 @@ function loadComfyIntoMainWindow() {
     log.error('Trying to load ComfyUI into main window but it is not ready yet.');
     return;
   }
-  mainWindow.webContents.send(IPC_CHANNELS.COMFYUI_READY, port);
+  mainWindow.loadURL(`http://${host}:${port}`);
 }
 
 async function loadRendererIntoMainWindow(): Promise<void> {
@@ -269,10 +250,50 @@ async function loadRendererIntoMainWindow(): Promise<void> {
   }
 }
 
-function restartApp() {
-  log.info('Restarting app');
-  app.relaunch();
-  app.quit();
+function restartApp({ customMessage, delay }: { customMessage?: string; delay?: number } = {}): void {
+  function relaunchApplication(delay?: number) {
+    isRestarting = true;
+    if (delay) {
+      log.info('Relaunching application in ', delay, 'ms');
+      setTimeout(() => {
+        app.relaunch();
+        app.quit();
+      }, delay);
+    } else {
+      app.relaunch();
+      app.quit();
+    }
+  }
+
+  log.info('Attempting to restart app with custom message: ', customMessage);
+  if (isRestarting) {
+    log.info('Already quitting, skipping restart');
+    return;
+  }
+
+  if (!customMessage) {
+    log.info('Skipping confirmation, restarting immediately');
+    return relaunchApplication(delay);
+  }
+
+  dialog
+    .showMessageBox({
+      type: 'question',
+      buttons: ['Yes', 'No'],
+      defaultId: 0,
+      title: 'Restart ComfyUI',
+      message: customMessage || 'Are you sure you want to restart ComfyUI?',
+      detail: 'The application will close and restart automatically.',
+    })
+    .then(({ response }) => {
+      if (response === 0) {
+        // "Yes" was clicked
+        log.info('User confirmed restart');
+        relaunchApplication(delay);
+      } else {
+        log.info('User cancelled restart');
+      }
+    });
 }
 
 function buildMenu(): void {
@@ -316,10 +337,10 @@ export const createWindow = async (userResourcesPath?: string): Promise<BrowserW
   const { width, height } = primaryDisplay.workAreaSize;
 
   // Retrieve stored window size, or use default if not available
-  const storedWidth = store.get('windowWidth', width);
-  const storedHeight = store.get('windowHeight', height);
-  const storedX = store.get('windowX');
-  const storedY = store.get('windowY');
+  const storedWidth = store?.get('windowWidth', width) ?? width;
+  const storedHeight = store?.get('windowHeight', height) ?? height;
+  const storedX = store?.get('windowX');
+  const storedY = store?.get('windowY');
 
   if (mainWindow) {
     log.info('Main window already exists');
@@ -342,13 +363,17 @@ export const createWindow = async (userResourcesPath?: string): Promise<BrowserW
   });
   log.info('Loading renderer into main window');
   mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow.webContents.send(IPC_CHANNELS.DEFAULT_INSTALL_LOCATION, app.getPath('documents'));
+    if (mainWindow) {
+      mainWindow.webContents.send(IPC_CHANNELS.DEFAULT_INSTALL_LOCATION, app.getPath('documents'));
+    }
   });
   ipcMain.handle(IPC_CHANNELS.GET_PRELOAD_SCRIPT, () => path.join(__dirname, 'preload.js'));
   await loadRendererIntoMainWindow();
   log.info('Renderer loaded into main window');
 
   const updateBounds = () => {
+    if (!mainWindow || !store) return;
+
     const { width, height, x, y } = mainWindow.getBounds();
     store.set('windowWidth', width);
     store.set('windowHeight', height);
@@ -359,22 +384,13 @@ export const createWindow = async (userResourcesPath?: string): Promise<BrowserW
   mainWindow.on('resize', updateBounds);
   mainWindow.on('move', updateBounds);
 
-  const shortcut = globalShortcut.register('CommandOrControl+Shift+L', () => {
-    mainWindow.webContents.send(IPC_CHANNELS.TOGGLE_LOGS);
-  });
-
-  if (!shortcut) {
-    log.error('Failed to register global shortcut');
-  }
-
   mainWindow.on('close', (e: Electron.Event) => {
     // Mac Only Behavior
     if (process.platform === 'darwin') {
       e.preventDefault();
-      mainWindow.hide();
+      if (mainWindow) mainWindow.hide();
       app.dock.hide();
     }
-    globalShortcut.unregister('CommandOrControl+Shift+L');
     mainWindow = null;
   });
 
@@ -411,7 +427,7 @@ const isComfyServerReady = async (host: string, port: number): Promise<boolean> 
 // Launch Python Server Variables
 const maxFailWait: number = 120 * 1000; // 120seconds
 let currentWaitTime = 0;
-let spawnServerTimeout: NodeJS.Timeout = null;
+let spawnServerTimeout: NodeJS.Timeout | null = null;
 
 const launchPythonServer = async (
   pythonInterpreterPath: string,
@@ -465,7 +481,9 @@ const launchPythonServer = async (
       currentWaitTime += 1000;
       if (currentWaitTime > maxFailWait) {
         //Something has gone wrong and we need to backout.
-        clearTimeout(spawnServerTimeout);
+        if (spawnServerTimeout) {
+          clearTimeout(spawnServerTimeout);
+        }
         reject('Python Server Failed To Start Within Timeout.');
       }
       const isReady = await isComfyServerReady(host, port);
@@ -475,7 +493,9 @@ const launchPythonServer = async (
 
         //For now just replace the source of the main window to the python server
         setTimeout(() => loadComfyIntoMainWindow(), 1000);
-        clearTimeout(spawnServerTimeout);
+        if (spawnServerTimeout) {
+          clearTimeout(spawnServerTimeout);
+        }
         return resolve();
       } else {
         log.info('Ping failed. Retrying...');
@@ -501,7 +521,8 @@ const sendRendererMessage = (channel: IPCChannel, data: any) => {
     channel: channel,
     data: data,
   };
-  if (!mainWindow.webContents || mainWindow.webContents.isLoading()) {
+
+  if (!mainWindow?.webContents || mainWindow.webContents.isLoading()) {
     log.info('Queueing message since renderer is not ready yet.');
     messageQueue.push(newMessage);
     return;
@@ -510,39 +531,43 @@ const sendRendererMessage = (channel: IPCChannel, data: any) => {
   if (messageQueue.length > 0) {
     while (messageQueue.length > 0) {
       const message = messageQueue.shift();
-      log.info('Sending queued message ', message.channel, message.data);
-      mainWindow.webContents.send(message.channel, message.data);
+      if (message) {
+        log.info('Sending queued message ', message.channel, message.data);
+        mainWindow.webContents.send(message.channel, message.data);
+      }
     }
   }
   mainWindow.webContents.send(newMessage.channel, newMessage.data);
 };
 
 const killPythonServer = async (): Promise<void> => {
-  if (comfyServerProcess) {
+  return new Promise<void>((resolve, reject) => {
+    if (!comfyServerProcess) {
+      resolve();
+      return;
+    }
+
     log.info('Killing ComfyUI python server.');
+    // Set up a timeout in case the process doesn't exit
+    const timeout = setTimeout(() => {
+      reject(new Error('Timeout: Python server did not exit within 10 seconds'));
+    }, 10000);
 
-    return new Promise<void>((resolve, reject) => {
-      // Set up a timeout in case the process doesn't exit
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout: Python server did not exit within 10 seconds'));
-      }, 10000);
-
-      // Listen for the 'exit' event
-      comfyServerProcess.once('exit', (code, signal) => {
-        clearTimeout(timeout);
-        log.info(`Python server exited with code ${code} and signal ${signal}`);
-        comfyServerProcess = null;
-        resolve();
-      });
-
-      // Attempt to kill the process
-      const result = comfyServerProcess.kill();
-      if (!result) {
-        clearTimeout(timeout);
-        reject(new Error('Failed to initiate kill signal for python server'));
-      }
+    // Listen for the 'exit' event
+    comfyServerProcess.once('exit', (code, signal) => {
+      clearTimeout(timeout);
+      log.info(`Python server exited with code ${code} and signal ${signal}`);
+      comfyServerProcess = null;
+      resolve();
     });
-  }
+
+    // Attempt to kill the process
+    const result = comfyServerProcess.kill();
+    if (!result) {
+      clearTimeout(timeout);
+      reject(new Error('Failed to initiate kill signal for python server'));
+    }
+  });
 };
 
 const spawnPython = (
@@ -567,18 +592,18 @@ const spawnPython = (
       pythonLog = log.create({ logId: options.logFile });
       pythonLog.transports.file.fileName = `${options.logFile}.log`;
       pythonLog.transports.file.resolvePathFn = (variables) => {
-        return path.join(variables.electronDefaultDir, variables.fileName);
+        return path.join(variables.electronDefaultDir ?? '', variables.fileName ?? '');
       };
     }
 
-    pythonProcess.stderr.on('data', (data) => {
+    pythonProcess.stderr?.on?.('data', (data) => {
       const message = data.toString().trim();
       pythonLog.error(`stderr: ${message}`);
       if (mainWindow) {
         sendRendererMessage(IPC_CHANNELS.LOG_MESSAGE, message);
       }
     });
-    pythonProcess.stdout.on('data', (data) => {
+    pythonProcess.stdout?.on?.('data', (data) => {
       const message = data.toString().trim();
       pythonLog.info(`stdout: ${message}`);
       if (mainWindow) {
@@ -606,14 +631,14 @@ const spawnPythonAsync = (
 
     if (options.stdx) {
       log.info('Setting up python process stdout/stderr listeners');
-      pythonProcess.stderr.on('data', (data) => {
+      pythonProcess.stderr?.on?.('data', (data) => {
         const message = data.toString();
         log.error(message);
         if (mainWindow) {
           sendRendererMessage(IPC_CHANNELS.LOG_MESSAGE, message);
         }
       });
-      pythonProcess.stdout.on('data', (data) => {
+      pythonProcess.stdout?.on?.('data', (data) => {
         const message = data.toString();
         log.info(message);
         if (mainWindow) {
@@ -834,75 +859,32 @@ async function determineResourcesPaths(): Promise<{
 }> {
   const modelConfigPath = path.join(app.getPath('userData'), 'extra_models_config.yaml');
   const basePath = await readBasePathFromConfig(modelConfigPath);
+  const appResourcePath = process.resourcesPath;
+  const defaultUserResourcesPath = getDefaultUserResourcesPath();
+
   if (!app.isPackaged) {
     return {
       // development: install python to in-tree assets dir
       userResourcesPath: path.join(app.getAppPath(), 'assets'),
       pythonInstallPath: path.join(app.getAppPath(), 'assets'),
       appResourcesPath: path.join(app.getAppPath(), 'assets'),
-      modelConfigPath: modelConfigPath,
-      basePath: basePath,
+      modelConfigPath,
+      basePath,
     };
   }
-
-  const defaultUserResourcesPath = getDefaultUserResourcesPath();
-
-  const appResourcePath = process.resourcesPath;
 
   // TODO(robinhuang): Look for extra models yaml file and use that as the userResourcesPath if it exists.
   return {
     userResourcesPath: defaultUserResourcesPath,
-    pythonInstallPath: basePath,
+    pythonInstallPath: basePath ?? defaultUserResourcesPath, // Provide fallback
     appResourcesPath: appResourcePath,
-    modelConfigPath: modelConfigPath,
-    basePath: basePath,
+    modelConfigPath,
+    basePath,
   };
 }
 
 function getDefaultUserResourcesPath(): string {
   return process.platform === 'win32' ? path.join(app.getPath('home'), 'comfyui-electron') : app.getPath('userData');
-}
-
-/**
- * For log watching.
- */
-function startWebSocketServer() {
-  wss = new WebSocketServer({ port: 7999 });
-
-  wss.on('connection', (ws) => {
-    const logPath = path.join(app.getPath('logs'), 'comfyui.log');
-
-    // Send the initial content
-    const initialStream = createReadStream(logPath, { encoding: 'utf-8' });
-    initialStream.on('data', (chunk) => {
-      ws.send(chunk);
-    });
-
-    let lastSize = 0;
-    const watcher = watchFile(logPath, { interval: 1000 }, (curr, prev) => {
-      if (curr.size > lastSize) {
-        const stream = createReadStream(logPath, {
-          start: lastSize,
-          encoding: 'utf-8',
-        });
-        stream.on('data', (chunk) => {
-          ws.send(chunk);
-        });
-        lastSize = curr.size;
-      }
-    });
-
-    ws.on('close', () => {
-      watcher.unref();
-    });
-  });
-}
-
-function closeWebSocketServer() {
-  if (wss) {
-    wss.close();
-    wss = null;
-  }
 }
 
 /**
@@ -919,33 +901,3 @@ const rotateLogFiles = (logDir: string, baseName: string) => {
     fs.renameSync(currentLogPath, newLogPath);
   }
 };
-
-/**
- * Install the Electron adapter into the ComfyUI custom_nodes directory.
- * @param appResourcesPath The path to the app resources.
- */
-function installElectronAdapter(appResourcesPath: string) {
-  const electronAdapterPath = path.join(appResourcesPath, 'ComfyUI_electron_adapter');
-  const comfyUIPath = path.join(appResourcesPath, 'ComfyUI');
-  const customNodesPath = path.join(comfyUIPath, 'custom_nodes');
-  const adapterDestPath = path.join(customNodesPath, 'ComfyUI_electron_adapter');
-
-  try {
-    // Ensure the custom_nodes directory exists
-    if (!fs.existsSync(customNodesPath)) {
-      fs.mkdirSync(customNodesPath, { recursive: true });
-    }
-
-    // Remove existing adapter folder if it exists
-    if (fs.existsSync(adapterDestPath)) {
-      fs.rmSync(adapterDestPath, { recursive: true, force: true });
-    }
-
-    // Copy the adapter folder
-    fs.cpSync(electronAdapterPath, adapterDestPath, { recursive: true });
-
-    log.info('Electron adapter installed successfully');
-  } catch (error) {
-    log.error('Failed to install Electron adapter:', error);
-  }
-}

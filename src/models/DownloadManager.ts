@@ -1,6 +1,6 @@
 import { BrowserWindow, session, DownloadItem, ipcMain } from 'electron';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 import { IPC_CHANNELS } from '../constants';
 import log from 'electron-log/main';
 
@@ -179,6 +179,7 @@ export class DownloadManager {
     } catch (error) {
       log.error(`Failed to delete file ${tempPath}: ${error}`);
     }
+    return true;
   }
 
   getAllDownloads(): DownloadState[] {
@@ -195,7 +196,7 @@ export class DownloadManager {
       }));
   }
 
-  private convertDownloadState(state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'): DownloadStatus {
+  private convertDownloadState(state?: 'progressing' | 'completed' | 'cancelled' | 'interrupted'): DownloadStatus {
     switch (state) {
       case 'progressing':
         return DownloadStatus.IN_PROGRESS;

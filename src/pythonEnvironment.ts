@@ -60,6 +60,7 @@ export class PythonEnvironment {
   }
 
   async isInstalled(): Promise<boolean> {
+    log.info(`Checking if Python is installed at ${this.pythonInterpreterPath} and ${this.pythonRecordPath}`);
     return (await pathAccessible(this.pythonInterpreterPath)) && (await pathAccessible(this.pythonRecordPath));
   }
 
@@ -85,7 +86,7 @@ export class PythonEnvironment {
     const { exitCode } = await this.spawnPythonAsync(this.pythonInterpreterPath, rehydrateCmd, this.pythonRootPath, {
       stdx: true,
     });
-    return exitCode;
+    return exitCode ?? -1;
   }
 
   async install(): Promise<void> {
