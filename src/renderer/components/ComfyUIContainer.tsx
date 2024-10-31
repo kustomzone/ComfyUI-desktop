@@ -23,10 +23,6 @@ const iframeStyle: React.CSSProperties = {
   height: '100%',
 };
 
-const logContainerStyle: React.CSSProperties = {
-  height: '300px',
-};
-
 const ComfyUIContainer: React.FC<ComfyUIContainerProps> = ({ comfyPort, preloadScript }) => {
   const webviewRef = useRef<WebviewTag>(null);
 
