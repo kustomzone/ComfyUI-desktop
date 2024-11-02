@@ -25,7 +25,7 @@ runs:
     - run: yarn set version --yarn-path self
       shell: bash
     - name: Make app
-      shell: powershell
+      shell: bash
       env:
         PUBLISH: true
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
