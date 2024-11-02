@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-stage-to-todesktop:
-    runs-on: windows-latest
+  build-todesktop:
+    runs-on: ubuntu-latest
     steps:
       - name: Github checkout
         uses: actions/checkout@v4
