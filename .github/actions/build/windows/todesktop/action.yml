@@ -36,4 +36,4 @@ runs:
         TODESKTOP_EMAIL: ${{ inputs.TODESKTOP_EMAIL}}
         TODESKTOP_ACCESS_TOKEN: ${{inputs.TODESKTOP_ACCESS_TOKEN}}
       run: |
-        ./todesktop-cli/node_modules/.bin/todesktop build --async
+        ./todesktop-cli/node_modules/.bin/todesktop build --config ./todesktop.json --async
