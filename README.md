@@ -48,6 +48,7 @@ yarn set version stable
 This will install a usable `yarn` binary. Then, in the root directory of this repo (ie adjacent to the top-level package.json file), run:
 
 ```bash
+yarn global add @todesktop/cli # Install this globally, and not part of the app.
 yarn install
 ```
 
