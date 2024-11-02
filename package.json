@@ -28,7 +28,7 @@
     "make:nvidia": "yarn run make -- --nvidia",
     "notarize": "node debug/notarize.js",
     "package": "yarn run vite:compile && todesktop build --code-sign=false --async",
-    "postinstall": "node todesktop-postinstall.js",
+    "postinstall": "node ./scripts/todesktop/postinstall.js",
     "prepare": "husky",
     "publish": "yarn run vite:compile && todesktop build --async",
     "sign": "node debug/sign.js",

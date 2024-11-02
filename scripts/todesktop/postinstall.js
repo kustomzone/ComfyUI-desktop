@@ -28,12 +28,12 @@ async function postInstall() {
   }
 
   if (os.platform() === 'darwin') {
-    const resultUpgradePip = spawnSync(`py`, ['-3.12', '-m', 'pip', 'install', '--upgrade pip'], {
+    const resultUpgradePip = spawnSync(`python3`, ['-m', 'pip', 'install', '--upgrade pip'], {
       shell: true,
       stdio: 'pipe',
       encoding: 'utf-8',
     });
-    const resultInstallComfyCLI = spawnSync(`py`, ['-3.12 ', '-m', 'pip', 'install comfy-cli'], {
+    const resultInstallComfyCLI = spawnSync(`python3`, ['-m', 'pip', 'install comfy-cli'], {
       shell: true,
       stdio: 'pipe',
       encoding: 'utf-8',
