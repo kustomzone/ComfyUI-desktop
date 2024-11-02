@@ -21,9 +21,9 @@ runs:
     - run: |
         npm install -g @todesktop/cli@1.9.7
         yarn install --immutable
-      shell: cmd
+      shell: bash
     - run: yarn set version --yarn-path self
-      shell: cmd
+      shell: bash
     - name: Make app
       shell: powershell
       env:
