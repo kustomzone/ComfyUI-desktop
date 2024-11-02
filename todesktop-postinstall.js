@@ -1,16 +1,13 @@
 const { spawnSync } = require("child_process");
-const path = require("path");
 const os = require('os');
 const process = require("process");
-//const fs = require('fs-extra');
 
 async function postInstall() {
     const firstInstallOnToDesktopServers =
     process.env.TODESKTOP_CI && process.env.TODESKTOP_INITIAL_INSTALL_PHASE;
 
+    console.log('Post Install' , os.platform());
     if (!firstInstallOnToDesktopServers) return;
-
-    console.log('After Yarn Install' , os.platform());
 
     if (os.platform() === "win32")
     {

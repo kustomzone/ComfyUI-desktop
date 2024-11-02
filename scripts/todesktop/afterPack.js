@@ -15,6 +15,7 @@ module.exports = async ({ appOutDir, packager, outDir }) => {
 
   // The purpose of this script is to move the built python and comfy files from assets to the resource folder of the app
   // We can not add them to extraFiles as that is done prior to building, where we need to move them AFTER
+  console.log('After Pack' , os.platform());
 
   if (os.platform() === "darwin") {
     const appName = packager.appInfo.productFilename;
