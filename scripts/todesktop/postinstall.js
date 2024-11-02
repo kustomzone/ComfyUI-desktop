@@ -1,6 +1,8 @@
 const { spawnSync } = require('child_process');
 const os = require('os');
 const process = require('process');
+const fs = require('fs-extra');
+
 
 async function postInstall() {
   const firstInstallOnToDesktopServers = process.env.TODESKTOP_CI && process.env.TODESKTOP_INITIAL_INSTALL_PHASE;
