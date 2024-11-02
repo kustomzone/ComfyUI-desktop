@@ -19,10 +19,14 @@ runs:
         node-version: '20.x'
         corepack: true
     - run: |
-        npm install -g @todesktop/cli@1.9.7
+        mkdir -p ./todesktop-cli
+        cd ./todesktop-cli
+        npm init -y
+        npm install @todesktop/cli@1.10.1
+        cd ..
         yarn install --immutable
-      shell: bash
-    - run: yarn set version --yarn-path self
+        yarn set version --yarn-path self
+        yarn run vite:compile
       shell: bash
     - name: Make app
       shell: bash
@@ -32,4 +36,4 @@ runs:
         TODESKTOP_EMAIL: ${{ inputs.TODESKTOP_EMAIL}}
         TODESKTOP_ACCESS_TOKEN: ${{inputs.TODESKTOP_ACCESS_TOKEN}}
       run: |
-        yarn run publish
+        ./todesktop-cli/node_modules/.bin/todesktop build --async
