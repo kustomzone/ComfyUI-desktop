@@ -30,5 +30,5 @@ runs:
         TODESKTOP_EMAIL: ${{ inputs.TODESKTOP_EMAIL}}
         TODESKTOP_ACCESS_TOKEN: ${{inputs.TODESKTOP_ACCESS_TOKEN}}
       run: |
-        npm install --location=global @todesktop/cli
+        npm install -g @todesktop/cli
         yarn run publish
