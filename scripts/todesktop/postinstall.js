@@ -7,7 +7,6 @@ const fs = require('fs-extra');
 async function postInstall() {
   const firstInstallOnToDesktopServers = process.env.TODESKTOP_CI && process.env.TODESKTOP_INITIAL_INSTALL_PHASE;
 
-  console.log('Post Install', os.platform());
   if (!firstInstallOnToDesktopServers) return;
 
   if (os.platform() === 'win32') {
@@ -41,11 +40,7 @@ async function postInstall() {
       encoding: 'utf-8',
     });
 
-    const resultCleanAssets = spawnSync('yarn run clean:assets', [''], {
-      shell: true,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-    });
+    fs.rmSync('./assets/ComfyUI', { recursive: true, force: true });
 
     const resultComfyManagerInstall = spawnSync('yarn run make:assets:macos', [''], {
       shell: true,
@@ -67,10 +62,6 @@ async function postInstall() {
         installComfOut: {
           log: resultInstallComfyCLI.stdout,
           err: resultInstallComfyCLI.stderr,
-        },
-        cleanAssetsOut: {
-          log: resultCleanAssets.stdout,
-          err: resultCleanAssets.stderr,
         },
         ComfyManInstallOut: {
           log: resultComfyManagerInstall.stdout,
