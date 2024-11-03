@@ -40,6 +40,13 @@ async function postInstall() {
       stdio: 'pipe',
       encoding: 'utf-8',
     });
+
+    const resultCleanAssets = spawnSync('yarn run clean:assets', [''], {
+      shell: true,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+    });
+
     const resultComfyManagerInstall = spawnSync('yarn run make:assets:macos', [''], {
       shell: true,
       stdio: 'pipe',
@@ -61,7 +68,11 @@ async function postInstall() {
           log: resultInstallComfyCLI.stdout,
           err: resultInstallComfyCLI.stderr,
         },
-        ComfManInstallOut: {
+        cleanAssetsOut: {
+          log: resultCleanAssets.stdout,
+          err: resultCleanAssets.stderr,
+        },
+        ComfyManInstallOut: {
           log: resultComfyManagerInstall.stdout,
           err: resultComfyManagerInstall.stderr,
         },
