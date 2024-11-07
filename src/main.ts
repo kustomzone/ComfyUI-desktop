@@ -184,9 +184,9 @@ if (!gotTheLock) {
 
       if (!useExternalServer) {
         sendProgressUpdate(ProgressStatus.PYTHON_SETUP);
-        const appResourcesPath = await getAppResourcesPath();
-        const pythonEnvironment = new PythonEnvironment(pythonInstallPath, appResourcesPath, spawnPythonAsync);
-        await pythonEnvironment.setup();
+        const virtualEnvironment = new VirtualEnvironment(basePath);
+        await virtualEnvironment.create();
+        await virtualEnvironment.installRequirements();
 
         // TODO: Make tray setup more flexible here as not all actions depend on the python environment.
         const modelConfigPath = getModelConfigPath();
@@ -197,10 +197,10 @@ if (!gotTheLock) {
             fs.rmSync(modelConfigPath);
             restartApp();
           },
-          pythonEnvironment
+          virtualEnvironment
         );
         sendProgressUpdate(ProgressStatus.STARTING_SERVER);
-        await launchPythonServer(pythonEnvironment.pythonInterpreterPath, appResourcesPath, modelConfigPath, basePath);
+        await launchPythonServer(virtualEnvironment, appResourcesPath, modelConfigPath, basePath);
       } else {
         sendProgressUpdate(ProgressStatus.READY);
         loadComfyIntoMainWindow();
