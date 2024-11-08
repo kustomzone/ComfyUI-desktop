@@ -119,3 +119,6 @@ test-results
 
 # Python venv
 venv/
+
+# UV
+assets/uv

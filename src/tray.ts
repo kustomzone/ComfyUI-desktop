@@ -4,8 +4,16 @@ import { exec } from 'child_process';
 import log from 'electron-log/main';
 import { PythonEnvironment } from './pythonEnvironment';
 import { AppWindow } from './main-process/appWindow';
+import { VirtualEnvironment } from './virtualEnvironment';
 
 export function SetupTray(mainView: AppWindow, reinstall: () => void, pythonEnvironment: PythonEnvironment): Tray {
+
+
+export function SetupTray(
+  mainView: BrowserWindow,
+  reinstall: () => void,
+  virtualEnvironment: VirtualEnvironment
+): Tray {
   // Set icon for the tray
   // I think there is a way to packaged the icon in so you don't need to reference resourcesPath
   const trayImage = path.join(
@@ -60,8 +68,8 @@ export function SetupTray(mainView: AppWindow, reinstall: () => void, pythonEnvi
       label: 'Install Python Packages (Open Terminal)',
       click: () => {
         // Open a Terminal locally and
-        const pythonDir = path.dirname(pythonEnvironment.pythonInterpreterPath);
-        const pythonExe = path.basename(pythonEnvironment.pythonInterpreterPath);
+        const pythonDir = path.dirname(virtualEnvironment.pythonInterpreterPath);
+        const pythonExe = path.basename(virtualEnvironment.pythonInterpreterPath);
         const command =
           process.platform === 'win32'
             ? `start powershell.exe -noexit -command "cd '${pythonDir}'; .\\${pythonExe} -m pip list"`
