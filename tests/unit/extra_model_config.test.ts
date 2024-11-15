@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import path from 'path';
-import { getModelConfigPath, readBasePathFromConfig } from '../../src/config/extra_model_config';
+import { getExtraModelPathsConfigPath, readBasePathFromConfig } from '../../src/config/extra_model_config';
 import * as fsPromises from 'node:fs/promises';
 // Mock electron
 jest.mock('electron', () => ({
@@ -20,7 +20,7 @@ describe('getModelConfigPath', () => {
       throw new Error(`Unexpected getPath key: ${key}`);
     });
 
-    const result = getModelConfigPath();
+    const result = getExtraModelPathsConfigPath();
 
     // Verify the path is correctly joined
     expect(result).toBe(path.join(mockUserDataPath, 'extra_models_config.yaml'));

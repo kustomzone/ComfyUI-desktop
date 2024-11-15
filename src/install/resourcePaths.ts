@@ -1,9 +1,9 @@
 import { app } from 'electron';
-import { getModelConfigPath, readBasePathFromConfig } from '../config/extra_model_config';
+import { getExtraModelPathsConfigPath, readBasePathFromConfig } from '../config/extra_model_config';
 import path from 'path';
 
 export async function getBasePath(): Promise<string | null> {
-  const modelConfigPath = getModelConfigPath();
+  const modelConfigPath = getExtraModelPathsConfigPath();
   return readBasePathFromConfig(modelConfigPath);
 }
 

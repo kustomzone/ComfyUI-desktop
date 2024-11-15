@@ -74,11 +74,24 @@ const configTemplates: Record<string, ModelPaths> = {
   },
 };
 
-export function getModelConfigPath(): string {
+/**
+ * Get path to extra_model_paths.yaml file.
+ * @returns The path to the extra model config file.
+ */
+export function getExtraModelPathsConfigPath(): string {
   return path.join(app.getPath('userData'), EXTRA_MODEL_CONFIG_PATH);
 }
 
-export async function createModelConfigFiles(extraModelConfigPath: string, customBasePath?: string): Promise<boolean> {
+/**
+ * Create extra_model_paths.yaml file.
+ * @param extraModelConfigPath The path to the extra model config file.
+ * @param customBasePath The base path to use for the comfyui directory.
+ * @returns True if the files were created successfully, false otherwise.
+ */
+export async function createExtraModelPathsConfig(
+  extraModelConfigPath: string,
+  customBasePath?: string
+): Promise<boolean> {
   log.info(`Creating model config files in ${extraModelConfigPath} with base path ${customBasePath}`);
   try {
     for (const [platform, config] of Object.entries(configTemplates)) {
