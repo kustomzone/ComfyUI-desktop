@@ -176,6 +176,26 @@ yarn:clean:assets
 yarn clean:slate
 ```
 
+# Contributing
+
+### PRs
+
+Some simple guidelines for good PRs.
+
+1. PR must have a good description that helps others understand what the change does and why it is being made. This might include adding a screenshot or video if possible. This helps everyone when looking at a change in retrospect as well.
+
+1. Add some unit tests if possible.
+
+1. Make sure CI passes.
+
+1. Consider the developer experience of everyone else when a change is being made. No change should break the local development flow.
+
+1. Does a single thing. Don't pack multiple changes into a single PR.
+
+Example of good PR:
+
+- [Litegraph Change](https://github.com/Comfy-Org/litegraph.js/pull/202)
+
 # Download
 
 Windows NSIS x64: [Download](https://download.comfy.org/windows/nsis/x64)
