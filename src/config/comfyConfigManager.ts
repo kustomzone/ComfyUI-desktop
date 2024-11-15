@@ -3,7 +3,9 @@ import path from 'path';
 import log from 'electron-log/main';
 
 export type DirectoryStructure = (string | DirectoryStructure)[];
-
+/**
+ * Responsible for setting up the ComfyUI directory structure and config file.
+ */
 export class ComfyConfigManager {
   private static readonly DEFAULT_DIRECTORIES: DirectoryStructure = [
     'custom_nodes',
@@ -47,13 +49,6 @@ export class ComfyConfigManager {
     ],
   ];
 
-  private static readonly DEFAULT_CONFIG = {
-    'Comfy.ColorPalette': 'dark',
-    'Comfy.UseNewMenu': 'Top',
-    'Comfy.Workflow.WorkflowTabsPosition': 'Topbar',
-    'Comfy.Workflow.ShowMissingModelsWarning': true,
-  };
-
   public static setUpComfyUI(localComfyDirectory: string): string {
     if (!this.isComfyUIDirectory(localComfyDirectory)) {
       log.info(
@@ -63,31 +58,7 @@ export class ComfyConfigManager {
     }
 
     this.createComfyDirectories(localComfyDirectory);
-    const userSettingsPath = path.join(localComfyDirectory, 'user', 'default');
-    this.createComfyConfigFile(userSettingsPath, true);
     return localComfyDirectory;
-  }
-
-  public static createComfyConfigFile(userSettingsPath: string, overwrite: boolean = false): void {
-    const configFilePath = path.join(userSettingsPath, 'comfy.settings.json');
-
-    if (fs.existsSync(configFilePath) && overwrite) {
-      const backupFilePath = path.join(userSettingsPath, 'old_comfy.settings.json');
-      try {
-        fs.renameSync(configFilePath, backupFilePath);
-        log.info(`Renaming existing user settings file to: ${backupFilePath}`);
-      } catch (error) {
-        log.error(`Failed to backup existing user settings file: ${error}`);
-        return;
-      }
-    }
-
-    try {
-      fs.writeFileSync(configFilePath, JSON.stringify(this.DEFAULT_CONFIG, null, 2));
-      log.info(`Created new ComfyUI config file at: ${configFilePath}`);
-    } catch (error) {
-      log.error(`Failed to create new ComfyUI config file: ${error}`);
-    }
   }
 
   public static isComfyUIDirectory(directory: string): boolean {

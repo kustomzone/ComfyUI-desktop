@@ -3,12 +3,11 @@ import fs from 'fs';
 import axios from 'axios';
 import path from 'node:path';
 import { setupTray } from './tray';
-import { IPC_CHANNELS, SENTRY_URL_ENDPOINT, ProgressStatus } from './constants';
+import { IPC_CHANNELS, ProgressStatus } from './constants';
 import { app, dialog, ipcMain } from 'electron';
 import log from 'electron-log/main';
 import * as Sentry from '@sentry/electron/main';
 import * as net from 'net';
-import { graphics } from 'systeminformation';
 import { ComfyServerConfig } from './config/comfyServerConfig';
 import todesktop from '@todesktop/runtime';
 import { DownloadManager } from './models/DownloadManager';
@@ -23,7 +22,9 @@ import { PathHandlers } from './handlers/pathHandlers';
 import { AppInfoHandlers } from './handlers/appInfoHandlers';
 import { InstallOptions } from './preload';
 import { VirtualEnvironment } from './virtualEnvironment';
+import { initSentry } from './crash-reports/sentryMain';
 
+initSentry();
 dotenv.config();
 
 let comfyServerProcess: ChildProcess | null = null;
@@ -44,15 +45,6 @@ let appWindow: AppWindow;
 let downloadManager: DownloadManager;
 
 log.initialize();
-
-const comfySettings = new ComfySettings(app.getPath('documents'));
-
-todesktop.init({
-  customLogger: log,
-  updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
-  autoUpdater: comfySettings.autoUpdate,
-});
-
 // Register the quit handlers regardless of single instance lock and before squirrel startup events.
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
@@ -98,50 +90,6 @@ if (!gotTheLock) {
       appWindow.focus();
     }
   });
-
-  Sentry.init({
-    dsn: SENTRY_URL_ENDPOINT,
-    autoSessionTracking: false,
-    async beforeSend(event, hint) {
-      if (event.extra?.comfyUIExecutionError || comfySettings.sendCrashStatistics) {
-        return event;
-      }
-
-      const { response } = await dialog.showMessageBox({
-        title: 'Send Crash Statistics',
-        message: `Would you like to send crash statistics to the team?`,
-        buttons: ['Always send crash reports', 'Do not send crash report'],
-      });
-
-      return response === 0 ? event : null;
-    },
-    integrations: [
-      Sentry.childProcessIntegration({
-        breadcrumbs: ['abnormal-exit', 'killed', 'crashed', 'launch-failed', 'oom', 'integrity-failure'],
-        events: ['abnormal-exit', 'killed', 'crashed', 'launch-failed', 'oom', 'integrity-failure'],
-      }),
-    ],
-  });
-
-  graphics()
-    .then((graphicsInfo) => {
-      const gpuInfo = graphicsInfo.controllers.map((gpu, index) => ({
-        [`gpu_${index}`]: {
-          vendor: gpu.vendor,
-          model: gpu.model,
-          vram: gpu.vram,
-          driver: gpu.driverVersion,
-        },
-      }));
-
-      // Combine all GPU info into a single object
-      const allGpuInfo = Object.assign({}, ...gpuInfo);
-      // Set Sentry context with all GPU information
-      Sentry.setContext('gpus', allGpuInfo);
-    })
-    .catch((e) => {
-      log.error('Error getting GPU info: ', e);
-    });
 
   app.on('ready', async () => {
     log.info('App ready');
@@ -270,6 +218,9 @@ function restartApp({ customMessage, delay }: { customMessage?: string; delay?: 
  */
 export const createWindow = (): void => {
   appWindow = new AppWindow();
+  if (!app.isPackaged) {
+    appWindow.openDevTools();
+  }
   buildMenu();
 };
 
@@ -481,6 +432,11 @@ async function handleInstall(installOptions: InstallOptions) {
   );
   comfyuiConfig['base_path'] = actualComfyDirectory;
   await ComfyServerConfig.createConfigFile(ComfyServerConfig.configPath, comfyuiConfig, extraConfigs);
+  const comfySettings = await ComfySettings.getInstance();
+  if (comfySettings) {
+    comfySettings.allowMetrics = installOptions.allowMetrics;
+    comfySettings.autoUpdate = installOptions.autoUpdate;
+  }
 }
 
 async function serverStart() {
@@ -503,6 +459,13 @@ async function serverStart() {
         });
 
   if (!useExternalServer) {
+    const autoUpdate = (await ComfySettings.getInstance())?.autoUpdate;
+    log.info('Initializing todesktop with autoUpdater: ', autoUpdate);
+    todesktop.init({
+      customLogger: log,
+      updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
+      autoUpdater: autoUpdate,
+    });
     sendProgressUpdate(ProgressStatus.PYTHON_SETUP);
     const appResourcesPath = await getAppResourcesPath();
     appWindow.send(IPC_CHANNELS.LOG_MESSAGE, `Creating Python environment...`);
