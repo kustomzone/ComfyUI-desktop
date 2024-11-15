@@ -9,7 +9,7 @@ import log from 'electron-log/main';
 import * as Sentry from '@sentry/electron/main';
 import * as net from 'net';
 import { graphics } from 'systeminformation';
-import { createModelConfigFiles, getModelConfigPath } from './config/extra_model_config';
+import { createExtraModelPathsConfig, getExtraModelPathsConfigPath } from './config/extra_model_config';
 import todesktop from '@todesktop/runtime';
 import { DownloadManager } from './models/DownloadManager';
 import { getModelsDirectory } from './utils';
@@ -198,7 +198,7 @@ if (!gotTheLock) {
 
     ipcMain.handle(IPC_CHANNELS.REINSTALL, async () => {
       log.info('Reinstalling...');
-      const modelConfigPath = getModelConfigPath();
+      const modelConfigPath = getExtraModelPathsConfigPath();
       fs.rmSync(modelConfigPath);
       restartApp();
     });
@@ -465,15 +465,15 @@ function findAvailablePort(startPort: number, endPort: number): Promise<number> 
  * This means the extra_models_config.yaml file exists in the user's data directory.
  */
 function isFirstTimeSetup(): boolean {
-  const extraModelsConfigPath = getModelConfigPath();
+  const extraModelsConfigPath = getExtraModelPathsConfigPath();
   log.info(`Checking if first time setup is complete. Extra models config path: ${extraModelsConfigPath}`);
   return !fs.existsSync(extraModelsConfigPath);
 }
 
 async function handleInstall(installOptions: InstallOptions) {
   const actualComfyDirectory = ComfyConfigManager.setUpComfyUI(installOptions.installPath);
-  const modelConfigPath = getModelConfigPath();
-  await createModelConfigFiles(modelConfigPath, actualComfyDirectory);
+  const modelConfigPath = getExtraModelPathsConfigPath();
+  await createExtraModelPathsConfig(modelConfigPath, actualComfyDirectory);
 }
 
 async function serverStart() {
@@ -510,7 +510,7 @@ async function serverStart() {
         appWindow.send(IPC_CHANNELS.LOG_MESSAGE, data);
       },
     });
-    const modelConfigPath = getModelConfigPath();
+    const modelConfigPath = getExtraModelPathsConfigPath();
     sendProgressUpdate(ProgressStatus.STARTING_SERVER);
     await launchPythonServer(virtualEnvironment, appResourcesPath, modelConfigPath, basePath);
   } else {
