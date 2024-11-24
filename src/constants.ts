@@ -1,3 +1,5 @@
+import i18next from 'i18next';
+
 export const IPC_CHANNELS = {
   LOADING_PROGRESS: 'loading-progress',
   IS_PACKAGED: 'is-packaged',
@@ -57,12 +59,11 @@ export enum ProgressStatus {
 }
 
 export const ProgressMessages = {
-  [ProgressStatus.INITIAL_STATE]: 'Loading...',
-  [ProgressStatus.PYTHON_SETUP]: 'Setting up Python Environment...',
-  [ProgressStatus.STARTING_SERVER]: 'Starting ComfyUI server...',
-  [ProgressStatus.READY]: 'Finishing...',
-  [ProgressStatus.ERROR]:
-    'Was not able to start ComfyUI. Please check the logs for more details. You can open it from the Help menu. Please report issues to: https://forum.comfy.org',
+  [ProgressStatus.INITIAL_STATE]: i18next.t('loading'),
+  [ProgressStatus.PYTHON_SETUP]: i18next.t('settingPython'),
+  [ProgressStatus.STARTING_SERVER]: i18next.t('startingComfyUI'),
+  [ProgressStatus.READY]: i18next.t('finishing'),
+  [ProgressStatus.ERROR]: i18next.t('noStartComfyUI'),
 } as const;
 
 export type IPCChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -81,13 +82,13 @@ export interface MigrationItem {
 export const MigrationItems: MigrationItem[] = [
   {
     id: 'user_files',
-    label: 'User Files',
-    description: 'Settings and user-created workflows',
+    label: i18next.t('userFiles'),
+    description: i18next.t('userFilesDescription'),
   },
   {
     id: 'models',
-    label: 'Models',
-    description: 'Reference model files from existing ComfyUI installations. (No copy)',
+    label: i18next.t('models'),
+    description: i18next.t('modelsDescription'),
   },
   // TODO: Decide whether we want to auto-migrate custom nodes, and install their dependencies.
   // huchenlei: This is a very essential thing for migration experience.

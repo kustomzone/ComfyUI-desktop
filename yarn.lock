@@ -459,6 +459,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@babel/runtime@npm:^7.23.2":
+  version: 7.26.0
+  resolution: "@babel/runtime@npm:7.26.0"
+  dependencies:
+    regenerator-runtime: "npm:^0.14.0"
+  checksum: 10c0/12c01357e0345f89f4f7e8c0e81921f2a3e3e101f06e8eaa18a382b517376520cd2fa8c237726eb094dab25532855df28a7baaf1c26342b52782f6936b07c287
+  languageName: node
+  linkType: hard
+
 "@babel/template@npm:^7.25.9, @babel/template@npm:^7.3.3":
   version: 7.25.9
   resolution: "@babel/template@npm:7.25.9"
@@ -566,6 +575,7 @@ __metadata:
     eslint: "npm:^8.0.1"
     eslint-plugin-import: "npm:^2.25.0"
     husky: "npm:^9.1.6"
+    i18next: "npm:^24.0.0"
     jest: "npm:^29.7.0"
     lint-staged: "npm:^15.2.10"
     node-pty: "npm:^1.0.0"
@@ -7662,6 +7672,20 @@ __metadata:
   bin:
     husky: bin.js
   checksum: 10c0/705673db4a247c1febd9c5df5f6a3519106cf0335845027bb50a15fba9b1f542cb2610932ede96fd08008f6d9f49db0f15560509861808b0031cdc0e7c798bac
+  languageName: node
+  linkType: hard
+
+"i18next@npm:^24.0.0":
+  version: 24.0.0
+  resolution: "i18next@npm:24.0.0"
+  dependencies:
+    "@babel/runtime": "npm:^7.23.2"
+  peerDependencies:
+    typescript: ^5
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: 10c0/675e87241883dffb18f7bea6d996475777f14406e55c2915ecafb6e4ec28c3e921b675f194e99c3de0f9f234a4a2e204f8c53cfc4fd34a1db89f98c191713034
   languageName: node
   linkType: hard
 

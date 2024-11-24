@@ -1,0 +1,16 @@
+export const messages = {
+  Yes: 'Yes',
+  No: 'No',
+  restartTitle: 'Restart ComfyUI',
+  restartMessage: 'Are you sure you want to restart ComfyUI?',
+  restartDetail: 'The application will close and restart automatically.',
+  startingComfyUI: 'Starting ComfyUI server...',
+  settingPython: 'Setting up Python Environment...',
+  loading: 'Loading...',
+  finishing: 'Finishing...',
+  noStartComfyUI: 'Was not able to start ComfyUI. Please check the logs for more details. You can open it from the Help menu. Please report issues to: https://forum.comfy.org',
+  userFiles: 'User Files',
+  userFilesDescription: 'Settings and user-created workflows',
+  models: 'Models',
+  modelsDescription: 'Reference model files from existing ComfyUI installations. (No copy)',
+} as const;

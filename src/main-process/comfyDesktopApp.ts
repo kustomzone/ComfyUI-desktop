@@ -16,6 +16,7 @@ import { DownloadManager } from '../models/DownloadManager';
 import { VirtualEnvironment } from '../virtualEnvironment';
 import { InstallWizard } from '../install/installWizard';
 import { Terminal } from '../terminal';
+import i18next from 'i18next';
 
 export class ComfyDesktopApp {
   public comfyServer: ComfyServer | null = null;
@@ -224,11 +225,11 @@ export class ComfyDesktopApp {
     dialog
       .showMessageBox({
         type: 'question',
-        buttons: ['Yes', 'No'],
+        buttons: [i18next.t('Yes'), i18next.t('No')],
         defaultId: 0,
-        title: 'Restart ComfyUI',
-        message: customMessage || 'Are you sure you want to restart ComfyUI?',
-        detail: 'The application will close and restart automatically.',
+        title: i18next.t('restartTitle'),
+        message: customMessage || i18next.t('restartMessage'),
+        detail: i18next.t('restartDetail'),
       })
       .then(({ response }) => {
         if (response === 0) {

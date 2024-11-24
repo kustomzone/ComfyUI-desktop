@@ -9,6 +9,8 @@ import { PathHandlers } from './handlers/pathHandlers';
 import { AppInfoHandlers } from './handlers/appInfoHandlers';
 import { ComfyDesktopApp } from './main-process/comfyDesktopApp';
 import { LevelOption } from 'electron-log';
+import i18next from 'i18next';
+import { getI18nConfig } from './i18n/i18nConfig';
 
 dotenv.config();
 log.initialize();
@@ -64,6 +66,12 @@ if (!gotTheLock) {
 } else {
   app.on('ready', async () => {
     log.debug('App ready');
+
+    try {
+      await i18next.init(getI18nConfig());
+    } catch (error) {
+      log.error('Unable to load / apply localisation file.', error);
+    }
 
     const appWindow = new AppWindow();
     appWindow.onClose(() => {
