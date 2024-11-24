@@ -16,6 +16,7 @@ import { DownloadManager } from '../models/DownloadManager';
 import { VirtualEnvironment } from '../virtualEnvironment';
 import { InstallWizard } from '../install/installWizard';
 import { Terminal } from '../terminal';
+import { DesktopError } from '../infrastructure/errors';
 import i18next from 'i18next';
 
 export class ComfyDesktopApp {
@@ -187,7 +188,7 @@ export class ComfyDesktopApp {
       : await this.install(appWindow);
 
     if (!basePath) {
-      throw new Error(`Base path not found! ${ComfyServerConfig.configPath} is probably corrupted.`);
+      throw new DesktopError('1000', { configPath: ComfyServerConfig.configPath });
     }
     return new ComfyDesktopApp(basePath, new ComfySettings(basePath), appWindow);
   }

@@ -1,10 +1,12 @@
 import { messages } from './en/messages';
+import { error } from './en/error';
 import type { InitOptions } from 'i18next';
 
-const ns = ['messages'];
+const ns = ['messages', 'error'];
 
 const resources = {
   en: {
+    error,
     messages,
   },
 };

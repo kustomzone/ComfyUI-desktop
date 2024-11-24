@@ -9,6 +9,8 @@ import { ComfyServerConfig } from '../config/comfyServerConfig';
 import { AppWindow } from './appWindow';
 import waitOn from 'wait-on';
 import { ChildProcess } from 'child_process';
+import { DesktopError } from '../infrastructure/errors';
+import i18next from 'i18next'
 
 export class ComfyServer {
   public static readonly MAX_FAIL_WAIT = 120 * 1000; // 120 seconds
@@ -107,7 +109,7 @@ export class ComfyServer {
       comfyServerProcess.on('exit', (code, signal) => {
         if (code !== 0) {
           log.error(`Python process exited with code ${code} and signal ${signal}`);
-          reject(new Error(`Python process exited with code ${code} and signal ${signal}`));
+          reject(new DesktopError('1102'));
         } else {
           log.info(`Python process exited successfully with code ${code}`);
           resolve();
@@ -127,7 +129,7 @@ export class ComfyServer {
         resolve();
       } catch (error) {
         log.error('Server failed to start:', error);
-        reject('Python Server Failed To Start Within Timeout.');
+        reject(i18next.t('error:1103'));
       }
     });
   }
@@ -143,7 +145,7 @@ export class ComfyServer {
       log.info('Killing ComfyUI python server.');
       // Set up a timeout in case the process doesn't exit
       const timeout = setTimeout(() => {
-        reject(new Error('Timeout: Python server did not exit within 10 seconds'));
+        reject(new DesktopError('1101'));
       }, 10000);
 
       // Listen for the 'exit' event
@@ -158,7 +160,7 @@ export class ComfyServer {
       const result = this.comfyServerProcess.kill();
       if (!result) {
         clearTimeout(timeout);
-        reject(new Error('Failed to initiate kill signal for python server'));
+        reject(new DesktopError('1100'));
       }
     });
   }
