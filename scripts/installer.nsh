@@ -83,7 +83,7 @@
 
 Section "Visual Studio Runtime"
   SetOutPath "$INSTDIR"
-  File "$TEMP/VC_redist.x64.exe"
+  File "$%TEMP%\VC_redist.x64.exe"
   ExecWait "$INSTDIR\VC_redist.x64.exe /install /quiet /norestart"
   Delete "$INSTDIR\VC_redist.x64.exe"
 SectionEnd
