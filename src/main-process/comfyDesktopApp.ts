@@ -142,7 +142,7 @@ export class ComfyDesktopApp {
 
         await installWizard.install();
         store.set('installState', 'installed');
-        appWindow.maximize()
+        appWindow.maximize();
         resolve(installWizard.basePath);
       });
     });
