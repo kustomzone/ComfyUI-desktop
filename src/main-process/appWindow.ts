@@ -5,6 +5,7 @@ import { AppWindowSettings } from '../store';
 import log from 'electron-log/main';
 import { IPC_CHANNELS, ProgressStatus, ServerArgs } from '../constants';
 import { getAppResourcesPath } from '../install/resourcePaths';
+import { useDesktopStore } from '../store/store';
 
 /**
  * Creates a single application window that displays the renderer and encapsulates all the logic for sending messages to the renderer.
@@ -17,8 +18,9 @@ export class AppWindow {
   private rendererReady: boolean = false;
 
   public constructor() {
+    const installed = useDesktopStore().store.get('installState') === 'installed';
     const primaryDisplay = screen.getPrimaryDisplay();
-    const { width, height } = primaryDisplay.workAreaSize;
+    const { width, height } = installed ? primaryDisplay.workAreaSize : { width: 1024, height: 768 };
     const store = this.loadWindowStore();
     this.store = store;
 
@@ -32,8 +34,8 @@ export class AppWindow {
       title: 'ComfyUI',
       width: storedWidth,
       height: storedHeight,
-      minWidth: 480,
-      minHeight: 360,
+      minWidth: 640,
+      minHeight: 640,
       x: storedX,
       y: storedY,
       webPreferences: {
@@ -46,6 +48,7 @@ export class AppWindow {
       autoHideMenuBar: true,
     });
 
+    if (!installed && storedX === undefined) this.window.center();
     if (store.get('windowMaximized')) this.window.maximize();
 
     this.setupWindowEvents();
@@ -119,6 +122,10 @@ export class AppWindow {
 
   public focus(): void {
     this.window.focus();
+  }
+
+  public maximize(): void {
+    this.window.maximize();
   }
 
   public async loadRenderer(urlPath: string = ''): Promise<void> {
