@@ -47,7 +47,7 @@ export class VirtualEnvironment {
     return this.uvPty;
   }
 
-  constructor(venvPath: string, pythonVersion: string = '3.12.4') {
+  constructor(venvPath: string, pythonVersion: string = '3.12.7') {
     this.venvRootPath = venvPath;
     this.venvPath = path.join(venvPath, '.venv'); // uv defaults to .venv
     const resourcesPath = app.isPackaged ? path.join(process.resourcesPath) : path.join(app.getAppPath(), 'assets');
