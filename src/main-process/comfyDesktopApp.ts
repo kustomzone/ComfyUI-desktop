@@ -45,7 +45,11 @@ export class ComfyDesktopApp {
       updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
       autoUpdater: this.comfySettings.get('Comfy-Desktop.AutoUpdate'),
     });
-    todesktop.autoUpdater?.setFeedURL('https://updater.comfy.org');
+    if (todesktop.autoUpdater) {
+      todesktop.autoUpdater.setFeedURL('https://updater.comfy.org');
+    } else {
+      log.info('Todesktop autoUpdater is not available');
+    }
   }
 
   private initializeTerminal(virtualEnvironment: VirtualEnvironment) {
