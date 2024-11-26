@@ -41,11 +41,13 @@ export class ComfyDesktopApp {
   initializeTodesktop(): void {
     log.info('Initializing todesktop');
     todesktop.init({
-      //@ts-ignore
-      feedUrl: 'https://updater.comfy.org',
       customLogger: log,
       updateReadyAction: { showInstallAndRestartPrompt: 'always', showNotification: 'always' },
-      autoUpdater: this.comfySettings.get('Comfy-Desktop.AutoUpdate'),
+      shouldAutoCheckOnLaunch: this.comfySettings.get('Comfy-Desktop.AutoUpdate'),
+      // @ts-ignore
+      autoUpdater: {
+        feedUrl: 'https://updater.comfy.org',
+      },
     });
     if (todesktop.autoUpdater) {
       log.info('Setting todesktop feed URL.');
