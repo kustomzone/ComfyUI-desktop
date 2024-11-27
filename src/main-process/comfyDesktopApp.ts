@@ -16,7 +16,7 @@ import { DownloadManager } from '../models/DownloadManager';
 import { VirtualEnvironment } from '../virtualEnvironment';
 import { InstallWizard } from '../install/installWizard';
 import { Terminal } from '../terminal';
-import { useDesktopStore } from '../store/store';
+import { DesktopConfig } from '../store/desktopConfig';
 import { InstallationValidator } from '../install/installationValidator';
 
 export class ComfyDesktopApp {
@@ -139,7 +139,7 @@ export class ComfyDesktopApp {
     return new Promise<string>((resolve) => {
       ipcMain.on(IPC_CHANNELS.INSTALL_COMFYUI, async (event, installOptions: InstallOptions) => {
         const installWizard = new InstallWizard(installOptions);
-        const { store } = useDesktopStore();
+        const { store } = DesktopConfig;
         store.set('basePath', installWizard.basePath);
 
         await installWizard.install();
@@ -188,7 +188,7 @@ export class ComfyDesktopApp {
   }
 
   static async create(appWindow: AppWindow): Promise<ComfyDesktopApp> {
-    const { store } = useDesktopStore();
+    const { store } = DesktopConfig;
     // Migrate settings from old version if required
     const installState = store.get('installState') ?? (await ComfyDesktopApp.migrateInstallState());
 
@@ -211,7 +211,7 @@ export class ComfyDesktopApp {
     const basePath = await ComfyDesktopApp.loadBasePath();
 
     // Migrate config
-    const { store } = useDesktopStore();
+    const { store } = DesktopConfig;
     const upgraded = 'upgraded';
     store.set('installState', upgraded);
     store.set('basePath', basePath);
